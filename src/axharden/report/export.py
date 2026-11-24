@@ -21,19 +21,22 @@ def export_csv(meta: dict, cams: list[CameraResult], catalog: Catalog, out: Path
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["run_id", "site", "camera", "host", "model", "serial", "axis_os", "camera_status",
-                "control_id", "title", "level", "guide_page", "csc", "status", "observed", "detail"])
+                "control_id", "title", "level", "guide_page", "csc", "status_before", "status", "observed", "detail",
+                "change"])
     for cam in cams:
         base = [meta["run_id"], cam.camera.get("site", ""), cam.camera.get("name", ""), cam.camera["host"],
                 cam.device.get("ProdNbr", ""), cam.device.get("SerialNumber", ""), cam.device.get("Version", ""),
                 cam.status]
         if not cam.results:
-            w.writerow(base + ["", "", "", "", "", "", "", cam.error])
+            w.writerow(base + ["", "", "", "", "", "", "", "", cam.error, ""])
             continue
-        for r in cam.results:
+        before = {r.id: r.status for r in cam.results}
+        change = {c["control_id"]: c["status"] for c in cam.changes if "writes" in c}
+        for r in (cam.after or cam.results):
             ctl = catalog.by_id.get(r.id)
             observed = "; ".join(f"{k}={v}" for k, v in r.observed.items()) if r.observed else ""
             w.writerow(base + [r.id, ctl.title if ctl else "", ctl.level if ctl else "",
                                ctl.guide_page if ctl else "", " ".join(ctl.csc) if ctl else "",
-                               r.status, observed[:500], r.detail])
+                               before.get(r.id, ""), r.status, observed[:500], r.detail, change.get(r.id, "")])
     write_private(out, buf.getvalue())
     return out

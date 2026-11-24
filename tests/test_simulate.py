@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from axharden.audit import AuditSettings, load_fixture_cameras, load_run, run_audit
+from axharden.audit import AuditSettings, load_fixture_cameras, load_run, run_audit, simulated_factory
 from axharden.catalog import load_profile
 from axharden.cli import main
 from axharden.inventory import password_findings
@@ -20,9 +20,10 @@ def _run(tmp_path, catalog, snaps, profile="audit-only"):
         (fx / f"{i}.json").write_text(json.dumps(s), encoding="utf-8")
     loaded = load_fixture_cameras(fx)
     cams = [c for c, _ in loaded]
-    fixtures = {c.host: s for c, s in loaded}
+    factory, _ = simulated_factory(loaded)
     run_id, run_dir, results = run_audit(cams, catalog, load_profile(profile, catalog), AuditSettings(),
-                                         password_findings([]), tmp_path / "out", fixtures=fixtures)
+                                         password_findings([]), tmp_path / "out", client_factory=factory,
+                                         simulated=True)
     return run_dir, {r.camera["host"]: {x.id: x for x in r.results} for r in results}, results
 
 
@@ -93,6 +94,3 @@ def test_cli_simulate_end_to_end(tmp_path, capsys):
     assert list(Path(tmp_path).rglob("report-*.html"))
 
 
-def test_cli_phase2_commands_refuse(capsys):
-    assert main(["apply", "--profile", "basic-safe"]) == 2
-    assert "phase 2" in capsys.readouterr().err

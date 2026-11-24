@@ -11,6 +11,11 @@ Rules enforced here:
 from __future__ import annotations
 
 import logging
+import os
+import re
+import socket
+import ssl
+import tempfile
 import threading
 import time
 import warnings
@@ -201,11 +206,56 @@ class CameraClient:
     def post_json(self, path: str, payload: dict, **kwargs: Any) -> requests.Response:
         return self.request("POST", path, json=payload, **kwargs)
 
+    def patch_json(self, path: str, payload: dict, **kwargs: Any) -> requests.Response:
+        return self.request("PATCH", path, json=payload, **kwargs)
+
     # ------------------------------------------------------------------ unauthenticated helpers
     def raw_get(self, url: str) -> requests.Response:
         """Unauthenticated GET to an arbitrary URL on this camera (e.g. the HTTP:80 redirect check)."""
         with self._lock:
             return self._send("GET", url, auth=None)
+
+    def http80(self) -> dict:
+        """What plain HTTP on port 80 does: {'status', 'location'} or {'status': None, 'error'}."""
+        host = f"[{self.camera.host}]" if ":" in self.camera.host else self.camera.host
+        try:
+            r = self.raw_get(f"http://{host}/")
+            return {"status": r.status_code, "location": r.headers.get("Location", "")}
+        except CameraError as e:
+            return {"status": None, "error": e.code}
+
+    def fetch_cert(self) -> dict:
+        """Server certificate details from a TLS handshake (no verification; for reporting only)."""
+        port = self.camera.port if (self.camera.port and self.camera.protocol == "https") else 443
+        try:
+            return fetch_cert(self.camera.host, port, self.timeout)
+        except (OSError, ssl.SSLError) as e:
+            return {"error": str(e)[:200]}
+
+
+def fetch_cert(host: str, port: int, timeout: float) -> dict:
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    is_ip = re.match(r"^[\d.:]+$", host) is not None
+    with socket.create_connection((host, port), timeout=timeout) as sock:
+        with ctx.wrap_socket(sock, server_hostname=None if is_ip else host) as tls:
+            der = tls.getpeercert(binary_form=True)
+            proto = tls.version()
+    pem = ssl.DER_cert_to_PEM_cert(der)
+    fd, path = tempfile.mkstemp(suffix=".pem")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(pem)
+        info = ssl._ssl._test_decode_cert(path)  # noqa: SLF001 - stdlib has no public DER parser
+    finally:
+        os.unlink(path)
+
+    def flat(rdns: Any) -> dict:
+        return {k: val for rdn in rdns for (k, val) in rdn}
+
+    return {"subject": flat(info.get("subject", ())), "issuer": flat(info.get("issuer", ())),
+            "notAfter": info.get("notAfter"), "tls_version": proto}
 
 
 def _short(e: Exception) -> str:

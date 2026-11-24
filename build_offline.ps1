@@ -23,15 +23,14 @@ Write-Host "== source folder + wheels"
 $src = Join-Path $dist "axharden-src"
 New-Item -ItemType Directory -Force $src | Out-Null
 & $py -m pip download -q --require-hashes -r requirements.lock -d (Join-Path $src "wheels")
-foreach ($item in "src","catalog","templates","docs","README.md","SECURITY.md","requirements.lock","requirements.in","pyproject.toml","axharden.cmd","axharden.sh") {
+foreach ($item in "src","catalog","templates","docs","README.md","SECURITY.md","requirements.lock","requirements.in","pyproject.toml","axharden.cmd","axharden-gui.cmd","axharden.sh") {
     if (Test-Path $item) { Copy-Item -Recurse $item $src }
 }
 
-Write-Host "== PyInstaller one-folder build"
-& $py -m PyInstaller --noconfirm --clean --onedir --name axharden `
-    --distpath (Join-Path $dist "pyi") --workpath build\pyi --specpath build `
-    --add-data "$PSScriptRoot\catalog;catalog" `
-    --paths src packaging\axharden_entry.py
+Write-Host "== PyInstaller one-folder build (GUI + CLI)"
+& $py -m PyInstaller --noconfirm --clean --distpath (Join-Path $dist "pyi") --workpath build\pyi packaging\axharden.spec
+# build\pyi holds half-built exes that fail with "Failed to load Python DLL" if run; remove it.
+Remove-Item -Recurse -Force build\pyi
 $win = Join-Path $dist "axharden-win64"
 Move-Item (Join-Path $dist "pyi\axharden") $win
 Remove-Item -Recurse -Force (Join-Path $dist "pyi")

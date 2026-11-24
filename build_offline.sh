@@ -18,13 +18,12 @@ $BP -m pip install -q pyinstaller cyclonedx-bom
 
 mkdir -p dist/axharden-src
 $BP -m pip download -q --require-hashes -r requirements.lock -d dist/axharden-src/wheels
-for item in src catalog templates docs README.md SECURITY.md requirements.lock requirements.in pyproject.toml axharden.cmd axharden.sh; do
+for item in src catalog templates docs README.md SECURITY.md requirements.lock requirements.in pyproject.toml axharden.cmd axharden-gui.cmd axharden.sh; do
   [ -e "$item" ] && cp -r "$item" dist/axharden-src/
 done
 
-$BP -m PyInstaller --noconfirm --clean --onedir --name axharden \
-  --distpath dist/pyi --workpath build/pyi --specpath build \
-  --add-data "$(pwd)/catalog:catalog" --paths src packaging/axharden_entry.py
+$BP -m PyInstaller --noconfirm --clean --distpath dist/pyi --workpath build/pyi packaging/axharden.spec
+rm -rf build/pyi   # half-built exes there fail if run
 mv dist/pyi/axharden dist/axharden-linux && rm -rf dist/pyi
 for item in templates docs README.md SECURITY.md; do
   [ -e "$item" ] && cp -r "$item" dist/axharden-linux/

@@ -6,11 +6,7 @@ and can be replayed in --simulate mode.
 
 from __future__ import annotations
 
-import os
 import re
-import socket
-import ssl
-import tempfile
 import xml.etree.ElementTree as ET
 from typing import Any, Callable
 
@@ -164,15 +160,8 @@ def auth_policy(ctl: Control, ctx: AuditContext) -> ControlResult:
 
 @handler("http_redirect")
 def http_redirect(ctl: Control, ctx: AuditContext) -> ControlResult:
-    host = ctx.camera.address if ctx.camera.protocol == "http" else (
-        f"[{ctx.camera.host}]" if ":" in ctx.camera.host else ctx.camera.host)
-
     def live() -> dict:
-        try:
-            r = ctx.client.raw_get(f"http://{host}/")
-            return {"status": r.status_code, "location": r.headers.get("Location", "")}
-        except CameraError as e:
-            return {"status": None, "error": e.code}
+        return ctx.client.http80()
 
     res = ctx.probe("HTTP80 /", live)
     status, loc = res.get("status"), (res.get("location") or "")
@@ -183,40 +172,9 @@ def http_redirect(ctl: Control, ctx: AuditContext) -> ControlResult:
     return ControlResult(ctl.id, NON_COMPLIANT, res, f"Plain HTTP answered with HTTP {status}.")
 
 
-def _fetch_cert(host: str, port: int, timeout: float) -> dict:
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    with socket.create_connection((host, port), timeout=timeout) as sock:
-        with ctx.wrap_socket(sock, server_hostname=host if not re.match(r"^[\d.:]+$", host) else None) as tls:
-            der = tls.getpeercert(binary_form=True)
-            proto = tls.version()
-    pem = ssl.DER_cert_to_PEM_cert(der)
-    fd, path = tempfile.mkstemp(suffix=".pem")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(pem)
-        info = ssl._ssl._test_decode_cert(path)  # noqa: SLF001 - stdlib has no public DER parser
-    finally:
-        os.unlink(path)
-
-    def flat(rdns: Any) -> dict:
-        return {k: val for rdn in rdns for (k, val) in rdn}
-
-    return {"subject": flat(info.get("subject", ())), "issuer": flat(info.get("issuer", ())),
-            "notAfter": info.get("notAfter"), "tls_version": proto}
-
-
 @handler("certificate")
 def certificate(ctl: Control, ctx: AuditContext) -> ControlResult:
-    def live() -> dict:
-        port = ctx.camera.port if (ctx.camera.port and ctx.camera.protocol == "https") else 443
-        try:
-            return _fetch_cert(ctx.camera.host, port, 10.0)
-        except (OSError, ssl.SSLError) as e:
-            return {"error": str(e)[:200]}
-
-    res = ctx.probe("TLS cert", live)
+    res = ctx.probe("TLS cert", lambda: ctx.client.fetch_cert())
     if "error" in res:
         return ControlResult(ctl.id, ERROR, res, f"TLS handshake failed: {res['error']}")
     issuer, subject = res.get("issuer", {}), res.get("subject", {})

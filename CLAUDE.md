@@ -23,7 +23,7 @@ A portable, offline tool that lets an engineer on a secure (air-gapped / CNI) ne
 | Constraint | Requirement |
 |---|---|
 | **Offline** | Makes no internet calls at runtime: no telemetry, no update checks, no CDN fonts or assets. The only network traffic is to the camera IPs in the inventory. |
-| **Portable** | Runs from a USB stick or a copied folder with no installer and no admin rights. Ships as either (a) a PyInstaller one-folder build for Windows, or (b) a source folder with `wheels/` installable with `pip install --no-index --find-links wheels`. A build script produces both. |
+| **Portable** | Runs from a USB stick or a copied folder with no installer and no admin rights. Ships as either (a) a PyInstaller one-folder build for Windows containing two programs, `AXIS Hardening Check.exe` (GUI) and `axharden.exe` (CLI), built from `packaging/axharden.spec`, or (b) a source folder with `wheels/` installable with `pip install --no-index --find-links wheels`. A build script produces both. |
 | **Platform** | Windows 10/11 is the primary target; must also run on Linux. Python 3.11+. |
 | **Minimal dependencies** | Only well-known, auditable packages (§3). Pinned with hashes in `requirements.lock`. |
 | **Credentials in memory only** | Credentials are read from the operator's inventory file at the start of each run and held in memory only. The tool never writes them anywhere (no vault, cache, snapshot or output file), never logs them and never shows them in reports. Protecting the inventory file itself is the operator's job (§5.3). |
@@ -44,7 +44,7 @@ A portable, offline tool that lets an engineer on a secure (air-gapped / CNI) ne
 - **Config / catalog:** YAML via `PyYAML`, `safe_load` only
 - **Report:** plain HTML generated with the standard library (inline CSS, no scripts, no external resources). Chosen over a PDF library to keep the tool small (drops `reportlab` + `pillow`).
 - **CLI:** `typer` (or `argparse` to reduce dependencies)
-- **GUI (phase 3, optional):** `tkinter`
+- **GUI:** `tkinter` (standard library). **Required**: most operators are non-technical and will only use the GUI (§7.6).
 - **Tests:** `pytest` and `responses`
 - **Packaging:** `PyInstaller`, plus `build_offline.ps1` / `build_offline.sh`
 
@@ -79,10 +79,11 @@ axharden/
 │   ├── version.py                 # AXIS OS version parsing/comparison
 │   ├── audit.py                   # batch runner, snapshots, --simulate replay
 │   ├── discover.py                # reference-camera dump, catalog diff, sanitised fixture
-│   ├── apply.py                   # phase 2
+│   ├── apply.py                   # plan, ordered writes, read-back, rollback
+│   ├── auditlog.py                # hash-chained JSONL audit log
 │   ├── report/html.py, export.py  # HTML report, CSV/JSON export
 │   ├── logging_setup.py           # redacting logger
-│   └── gui/ (phase 3)
+│   └── gui/app.py                 # tkinter GUI (§7.6)
 ├── tests/ (+ fixtures/ sanitised discover dumps)
 └── output/                        # runtime only, git-ignored
 ```
@@ -310,6 +311,15 @@ Reapply the pre-change snapshot for the selected run, camera and controls. Logge
 ### 7.4 Discover (catalog verification)
 Against a reference camera: dump `param.cgi?action=list` and `/axis-cgi/apidiscovery.cgi` to JSON, then diff them against the catalog. List the catalog parameters missing on this firmware and the parameter-name case differences (e.g. `PreventDosAttack` vs `PreventDoSAttack`). Offer to mark matched entries `verified: true` for that model and firmware.
 
+### 7.6 GUI (for non-technical operators)
+`AXIS Hardening Check.exe` (or `axharden gui`). One window, three numbered steps, plain English throughout:
+1. **Camera list**: choose the XLSX/CSV, or "Make a blank list". Blank passwords are asked for in a masked dialog, once per username. Validation errors are listed, and shared or weak password warnings are shown.
+2. **Details**: operator name (required, remembered), report marking, site filter, certificate mode (normal / CA file / accept the cameras' own certificates), report folder (default `output/` next to the program).
+3. **Run check**: background thread with a progress bar and a results table (Checked / Not reachable / Wrong password / Certificate problem...). Double-clicking a camera explains the problem and lists failing settings. Then "Open report" / "Open report folder".
+- Tools menu: **Try a demo** (bundled recorded data in `catalog/demo/`, no network) and an Advanced `discover`.
+- Remembers only non-secret choices in `output/gui_settings.json`. Never stores credentials.
+- "Fix problems..." opens a preview with a tick box per change; "Undo last changes" rolls back the last apply run.
+
 ### 7.5 Don't trip the camera's own brute-force protection
 The guide's brute-force settings (p.33) block an IP for 10 s after 20 failed requests within the interval. So:
 - **Never retry on 401/403.** Mark the camera `AUTH_FAILED` and move on.
@@ -356,8 +366,12 @@ No passwords appear anywhere. The report shows the run ID in its footer and a co
 ## 11. Build phases
 
 1. **Phase 1 – Read-only:** inventory loading, VAPIX client, discover, audit, HTML/CSV/JSON report. *Built 2026-11-24; tested live on M4216-LV 10.12.252.*
-2. **Phase 2 – Apply:** plan, dry-run, apply with verification, audit log, rollback. Profiles `basic-safe` → `basic-full`.
-3. **Phase 3 – Extras:** tkinter GUI, port controls (AX-B-021/022), drift report comparing two runs.
+2. **Phase 2 – Apply:** plan, dry-run, apply with verification, audit log, rollback. Profiles `basic-safe` → `basic-full`. *Built 2026-11-24 (CLI + GUI "Fix problems..." / "Undo last changes"); tested on simulated cameras. Real-camera apply + rollback verified on M4216-LV 10.12.252 (AX-B-001, -012, -014).*
+   - `vapix/sim.py`: a stateful simulated camera (SimDevice/SimClient) used by `--simulate`, the GUI demo and the tests. Audit and apply use the same code path via a `client_factory`.
+   - In the GUI, disruptive changes (AX-B-009, AX-B-016) start unticked and need an extra confirmation. A plan older than 30 minutes asks for a re-check first.
+   - `apply` refuses the `audit-only` profile (it contains opt-in controls) unless `--controls` is given.
+   - Values are written in the device's own case style (`Yes` -> `No`, `Off` -> `On`).
+3. **Phase 3 – Extras:** port controls (AX-B-021/022), drift report comparing two runs.
 
 ---
 

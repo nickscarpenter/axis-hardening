@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from . import __version__, GUIDE_REF
+from . import GUIDE_REF, __version__
 from .catalog import Catalog, Profile
-from .evaluate import AuditContext, ControlResult, ProbeUnavailable, evaluate
+from .evaluate import AuditContext, ControlResult, evaluate
 from .inventory import Camera, Credential, PasswordFindings
 from .vapix import device as vdevice
 from .vapix import params as vparams
@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 
 MIN_SUPPORTED_OS = v("10.0")
 SNAPSHOT_VERSION = 1
+ClientFactory = Callable[..., Any]   # (camera, scheme=None) -> CameraClient-like
 
 
 @dataclass
@@ -38,35 +39,44 @@ class AuditSettings:
     min_axis_os: str = "10.0"
     operator: str = ""
 
+    def live_factory(self) -> ClientFactory:
+        def factory(camera: Camera, scheme: str | None = None, **_: Any) -> CameraClient:
+            return CameraClient(camera, tls=self.tls, timeout=self.timeout, min_delay=self.min_delay, scheme=scheme)
+        return factory
+
 
 @dataclass
 class CameraResult:
     camera: dict
-    status: str                      # OK | OUT_OF_SCOPE | UNREACHABLE | AUTH_FAILED | TLS_ERROR | INSECURE_AUTH_REFUSED | ERROR
+    status: str                      # OK | OUT_OF_SCOPE | UNREACHABLE | AUTH_FAILED | TLS_ERROR | INSECURE_AUTH_REFUSED | LOST_CONTACT | ERROR
     error: str = ""
     device: dict = field(default_factory=dict)
-    results: list[ControlResult] = field(default_factory=list)
+    results: list[ControlResult] = field(default_factory=list)     # before (audit)
     auth_scheme: str = ""
     scheme: str = ""
     requests: int = 0
     started: str = ""
     finished: str = ""
+    changes: list[dict] = field(default_factory=list)              # apply/rollback runs
+    after: list[ControlResult] = field(default_factory=list)       # re-audit after changes
 
     @property
     def reachable(self) -> bool:
-        return self.status in ("OK", "OUT_OF_SCOPE")
+        return self.status in ("OK", "OUT_OF_SCOPE", "LOST_CONTACT") and bool(self.results)
 
     def to_dict(self) -> dict:
         return {"camera": self.camera, "status": self.status, "error": self.error, "device": self.device,
                 "results": [r.to_dict() for r in self.results], "auth_scheme": self.auth_scheme,
-                "scheme": self.scheme, "requests": self.requests, "started": self.started, "finished": self.finished}
+                "scheme": self.scheme, "requests": self.requests, "started": self.started, "finished": self.finished,
+                "changes": self.changes, "after": [r.to_dict() for r in self.after]}
 
     @classmethod
     def from_dict(cls, d: dict) -> "CameraResult":
         return cls(camera=d["camera"], status=d["status"], error=d.get("error", ""), device=d.get("device") or {},
                    results=[ControlResult.from_dict(r) for r in d.get("results") or []],
                    auth_scheme=d.get("auth_scheme", ""), scheme=d.get("scheme", ""), requests=d.get("requests", 0),
-                   started=d.get("started", ""), finished=d.get("finished", ""))
+                   started=d.get("started", ""), finished=d.get("finished", ""), changes=d.get("changes") or [],
+                   after=[ControlResult.from_dict(r) for r in d.get("after") or []])
 
 
 def now_iso() -> str:
@@ -119,10 +129,18 @@ def _run_checks(camera: Camera, catalog: Catalog, control_ids: list[str], tree: 
     return results
 
 
-def audit_camera(camera: Camera, catalog: Catalog, control_ids: list[str], settings: AuditSettings,
-                 passwords: PasswordFindings, run_dir: Path) -> CameraResult:
-    res = CameraResult(camera=camera.public_dict(), status="OK", started=now_iso(), scheme=camera.protocol)
-    snapshot: dict[str, Any] = {"snapshot_version": SNAPSHOT_VERSION, "tool_version": __version__}
+@dataclass
+class CameraRead:
+    info: dict
+    tree: vparams.ParamTree
+    apis: list
+    results: list[ControlResult]
+    probes: dict
+
+
+def read_camera(client: Any, camera: Camera, catalog: Catalog, control_ids: list[str], passwords: PasswordFindings,
+                min_axis_os: str) -> CameraRead:
+    """Read everything once (device info, the whole param tree in one call, API list) and evaluate controls."""
     probes: dict[str, Any] = {}
 
     def probe(key: str, fn: Callable[[], Any]) -> Any:
@@ -130,19 +148,26 @@ def audit_camera(camera: Camera, catalog: Catalog, control_ids: list[str], setti
             probes[key] = fn()
         return probes[key]
 
-    client = CameraClient(camera, tls=settings.tls, timeout=settings.timeout, min_delay=settings.min_delay)
+    info = vdevice.basic_device_info(client)
+    tree = vparams.list_all(client)
+    apis = vdevice.api_list(client)
+    info = _device_summary(info, tree)
+    api_ids = {a.get("id", "") for a in apis}
+    results = _run_checks(camera, catalog, control_ids, tree, info, api_ids, passwords, probe, client, min_axis_os)
+    return CameraRead(info, tree, apis, results, probes)
+
+
+def audit_camera(camera: Camera, catalog: Catalog, control_ids: list[str], settings: AuditSettings,
+                 passwords: PasswordFindings, run_dir: Path, client_factory: ClientFactory | None = None) -> CameraResult:
+    res = CameraResult(camera=camera.public_dict(), status="OK", started=now_iso(), scheme=camera.protocol)
+    snapshot: dict[str, Any] = {"snapshot_version": SNAPSHOT_VERSION, "tool_version": __version__}
+    client = (client_factory or settings.live_factory())(camera)
     try:
         res.auth_scheme = client.negotiate()
-        info = vdevice.basic_device_info(client)
-        tree = vparams.list_all(client)       # the whole tree in one call
-        apis = vdevice.api_list(client)
-        info = _device_summary(info, tree)
-        res.device = info
-        api_ids = {a.get("id", "") for a in apis}
-        snapshot.update(params=tree.to_dict(), apis=apis, device=info)
-        res.results = _run_checks(camera, catalog, control_ids, tree, info, api_ids, passwords, probe, client,
-                                  settings.min_axis_os)
-        ver = AxisVersion.parse(info.get("Version"))
+        read = read_camera(client, camera, catalog, control_ids, passwords, settings.min_axis_os)
+        res.device, res.results = read.info, read.results
+        snapshot.update(params=read.tree.to_dict(), apis=read.apis, device=read.info, probes=read.probes)
+        ver = AxisVersion.parse(read.info.get("Version"))
         if ver is not None and ver < MIN_SUPPORTED_OS:
             res.status = "OUT_OF_SCOPE"
             res.error = f"AXIS OS {ver} is below 10.0; audited read-only, no changes will be planned."
@@ -156,8 +181,6 @@ def audit_camera(camera: Camera, catalog: Catalog, control_ids: list[str], setti
         res.requests = client.request_count
         client.close()
         res.finished = now_iso()
-
-    snapshot["probes"] = probes
     snapshot.update(res.to_dict())
     write_private(run_dir / "cameras" / f"{safe_name(camera.host)}.json", json.dumps(snapshot, indent=1, default=str))
     return res
@@ -181,39 +204,15 @@ def load_fixture_cameras(path: Path) -> list[tuple[Camera, dict]]:
     return out
 
 
-def simulate_camera(camera: Camera, snap: dict, catalog: Catalog, control_ids: list[str], settings: AuditSettings,
-                    passwords: PasswordFindings, run_dir: Path) -> CameraResult:
-    res = CameraResult(camera=camera.public_dict(), status="OK", started=now_iso(), scheme=camera.protocol,
-                       auth_scheme=snap.get("auth_scheme", "simulated"))
-    recorded = snap.get("probes") or {}
-
-    def probe(key: str, fn: Callable[[], Any]) -> Any:
-        if key not in recorded:
-            raise ProbeUnavailable(key)
-        return recorded[key]
-
-    tree = vparams.ParamTree(snap["params"])
-    info = _device_summary(snap.get("device") or {}, tree)
-    res.device = info
-    api_ids = {a.get("id", "") for a in snap.get("apis") or []}
-    res.results = _run_checks(camera, catalog, control_ids, tree, info, api_ids, passwords, probe, None,
-                              settings.min_axis_os)
-    ver = AxisVersion.parse(info.get("Version"))
-    if ver is not None and ver < MIN_SUPPORTED_OS:
-        res.status = "OUT_OF_SCOPE"
-        res.error = f"AXIS OS {ver} is below 10.0; audited read-only, no changes will be planned."
-    res.finished = now_iso()
-    out = dict(snap)
-    out.update(res.to_dict())
-    write_private(run_dir / "cameras" / f"{safe_name(camera.host)}.json", json.dumps(out, indent=1, default=str))
-    return res
+def simulated_factory(loaded: list[tuple[Camera, dict]]) -> tuple[ClientFactory, dict]:
+    from .vapix.sim import SimDevice, sim_factory
+    devices = {cam.host: SimDevice(snap) for cam, snap in loaded}
+    return sim_factory(devices), devices
 
 
 # ---------------------------------------------------------------- batch
 
-def run_audit(cameras: list[Camera], catalog: Catalog, profile: Profile, settings: AuditSettings,
-              passwords: PasswordFindings, output_dir: Path, fixtures: dict[str, dict] | None = None,
-              progress: Callable[[CameraResult], None] | None = None) -> tuple[str, Path, list[CameraResult]]:
+def make_run_dir(output_dir: Path) -> tuple[str, Path]:
     run_id = new_run_id()
     run_dir = output_dir / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -221,40 +220,58 @@ def run_audit(cameras: list[Camera], catalog: Catalog, profile: Profile, setting
         os.chmod(run_dir, 0o700)
     except OSError:
         pass
-    meta = {
-        "run_id": run_id, "kind": "audit", "started": now_iso(), "tool_version": __version__, "guide": GUIDE_REF,
+    return run_id, run_dir
+
+
+def base_meta(run_id: str, kind: str, catalog: Catalog, profile: Profile, settings: AuditSettings,
+              passwords: PasswordFindings, cameras: list[Camera], simulated: bool) -> dict:
+    return {
+        "run_id": run_id, "kind": kind, "started": now_iso(), "tool_version": __version__, "guide": GUIDE_REF,
         "catalog_sha256": catalog.sha256, "profile": profile.name, "control_ids": profile.control_ids,
         "operator": settings.operator, "insecure_tls": settings.tls.insecure,
         "ca_bundle": settings.tls.verify if isinstance(settings.tls.verify, str) else None,
-        "simulated": fixtures is not None, "min_axis_os": settings.min_axis_os,
+        "simulated": simulated, "min_axis_os": settings.min_axis_os,
         "password_findings": {"shared_groups": passwords.shared_groups, "weak": passwords.weak},
         "cameras": [c.public_dict() for c in cameras],
     }
+
+
+def run_parallel(cameras: list[Camera], workers: int, fn: Callable[[Camera], CameraResult],
+                 progress: Callable[[CameraResult], None] | None) -> list[CameraResult]:
     results: list[CameraResult] = []
-    t0 = time.monotonic()
-
-    def one(cam: Camera) -> CameraResult:
-        ids = profile.control_ids
-        if fixtures is not None:
-            return simulate_camera(cam, fixtures[cam.host], catalog, ids, settings, passwords, run_dir)
-        return audit_camera(cam, catalog, ids, settings, passwords, run_dir)
-
-    with ThreadPoolExecutor(max_workers=max(1, settings.workers)) as pool:
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         # One task per camera => at most one in-flight request per camera.
-        futures = {pool.submit(one, cam): cam for cam in cameras}
+        futures = {pool.submit(fn, cam): cam for cam in cameras}
         for fut in as_completed(futures):
             r = fut.result()
             results.append(r)
             if progress:
                 progress(r)
-
     order = {c.host: i for i, c in enumerate(cameras)}
     results.sort(key=lambda r: order.get(r.camera["host"], 0))
+    return results
+
+
+def finish_meta(meta: dict, results: list[CameraResult], t0: float, run_dir: Path) -> None:
     meta["finished"] = now_iso()
     meta["duration_s"] = round(time.monotonic() - t0, 1)
-    meta["summary"] = {"in_scope": len(cameras), "reachable": sum(r.reachable for r in results),
+    meta["summary"] = {"in_scope": len(results), "reachable": sum(r.reachable for r in results),
                        "failed": sum(not r.reachable for r in results)}
     write_private(run_dir / "run.json", json.dumps(meta, indent=1, default=str))
+
+
+def run_audit(cameras: list[Camera], catalog: Catalog, profile: Profile, settings: AuditSettings,
+              passwords: PasswordFindings, output_dir: Path, client_factory: ClientFactory | None = None,
+              progress: Callable[[CameraResult], None] | None = None,
+              simulated: bool = False) -> tuple[str, Path, list[CameraResult]]:
+    run_id, run_dir = make_run_dir(output_dir)
+    meta = base_meta(run_id, "audit", catalog, profile, settings, passwords, cameras, simulated)
+    t0 = time.monotonic()
+    results = run_parallel(cameras, settings.workers,
+                           lambda cam: audit_camera(cam, catalog, profile.control_ids, settings, passwords, run_dir,
+                                                    client_factory),
+                           progress)
+    finish_meta(meta, results, t0, run_dir)
     return run_id, run_dir, results
 
 
