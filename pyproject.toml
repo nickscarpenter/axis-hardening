@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "axharden"
+version = "0.1.0"
+description = "Offline AXIS OS camera hardening audit tool (AXIS OS Hardening guide T10177717)"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "openpyxl",
+    "PyYAML",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "responses"]
+
+[project.scripts]
+axharden = "axharden.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

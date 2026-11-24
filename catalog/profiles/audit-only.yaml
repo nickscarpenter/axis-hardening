@@ -1,0 +1,3 @@
+name: audit-only
+description: Every control, read only. Default profile for `audit`.
+include_all: true

@@ -1,0 +1,2 @@
+ip,username,password,name,site,protocol,profile,ports,notes
+10.0.0.21,root,,Gate cam 1,Site A,https,,,Leave password blank to be prompted

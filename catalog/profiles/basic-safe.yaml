@@ -1,0 +1,7 @@
+name: basic-safe
+description: >
+  Basic hardening that does not cut off people or the VMS. Excludes web-interface disable,
+  server-header hide, port shutdowns, SD/audio disable and anonymous device-info.
+include_checks: true
+controls: [AX-B-001, AX-B-002, AX-B-003, AX-B-004, AX-B-005, AX-B-006, AX-B-008, AX-B-009, AX-B-010,
+           AX-B-011, AX-B-012, AX-B-013, AX-B-014, AX-B-015, AX-B-018, AX-B-019, AX-B-020]

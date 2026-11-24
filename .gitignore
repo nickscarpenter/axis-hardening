@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+dist/
+output/
+*.egg-info/
+# never commit real inventories
+/cameras*.csv
+/cameras*.xlsx
+/inventory*.csv
+/inventory*.xlsx
+.build-venv/

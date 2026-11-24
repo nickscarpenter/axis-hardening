@@ -1,0 +1,5 @@
+# Runtime dependencies (see SECURITY.md for why each is needed).
+# Lock with hashes:  pip-compile --generate-hashes -o requirements.lock requirements.in
+requests
+openpyxl
+PyYAML

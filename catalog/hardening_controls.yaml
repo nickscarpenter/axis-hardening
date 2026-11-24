@@ -1,0 +1,373 @@
+# AXIS OS hardening control catalog
+# Source: AXIS OS Hardening guide T10177717, 2026-07 (M71.3). Scope: AXIS OS 10.0 and later (CLAUDE.md §6.0).
+#
+# Evaluation rules (catalog.py / evaluate.py):
+# - Parameter presence wins. If a param exists it is evaluated, whatever removed_in says
+#   (e.g. System.EditCgi is still present on 10.12 although the guide says the script editor went in 10.11).
+# - A missing required param makes the control NOT_SUPPORTED; removed_in / introduced_in only explain why.
+#   missing_status: na  -> N/A instead (feature depends on the model, e.g. PTZ).
+# - optional: true params are skipped when missing. If every param is skipped -> NOT_SUPPORTED.
+# - Comparison is case-insensitive. compare: subset = device list (':'-separated) must only contain allowed items.
+# - advisory_from: from this AXIS OS version a NON_COMPLIANT result is downgraded to INFO.
+# - verified_on lists "model fw" where the parameter names were confirmed with `axharden discover`.
+
+schema_version: 1
+guide: "AXIS OS Hardening guide T10177717 (2026-07)"
+
+controls:
+
+# ---------------------------------------------------------------- APPLY controls (guide pp.32-34)
+
+- id: AX-B-001
+  title: Disable Bonjour discovery protocol
+  guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols"
+  guide_page: 18
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.Bonjour.Enabled, hardened: "no"}
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-002
+  title: Disable UPnP discovery protocol
+  guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols"
+  guide_page: 18
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.UPnP.Enabled, hardened: "no"}
+    - {name: root.Network.UPnP.NATTraversal.Enabled, hardened: "no", optional: true, removed_in: "10.12"}
+  warning: "UPnP and SSDP are disabled by default from AXIS OS 12.0."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-003
+  title: Disable WS-Discovery
+  guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols"
+  guide_page: 19
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.WebService.DiscoveryMode.Discoverable, hardened: "no"}
+  warning: "Disable only after the camera has been added to the VMS. Off by default from AXIS OS 12.1."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-004
+  title: Disable O3C (one-click cloud connection)
+  guide_section: "Quickstart guide > Basic hardening via VAPIX API"
+  guide_page: 32
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.RemoteService.Enabled, hardened: "no"}   # device values seen: yes | no | oneclick
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-005
+  title: Disable SSH access
+  guide_section: "Basic hardening > Disable unused services/functions > SSH access"
+  guide_page: 20
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.SSH.Enabled, hardened: "no"}
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-006
+  title: Disable FTP access
+  guide_section: "Legacy hardening > FTP access"
+  guide_page: 28
+  csc: ["4"]
+  level: legacy
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.FTP.Enabled, hardened: "no"}
+  removed_in: "11.1"
+  verified_on: ["M4216-LV 10.12.252"]
+
+# AX-B-007 (ARP/Ping, removed in AXIS OS 7.10) is retired: out of scope for AXIS OS 10.0+. ID reserved.
+
+- id: AX-B-008
+  title: Disable ZeroConf IP address configuration
+  guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols"
+  guide_page: 19
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.ZeroConf.Enabled, hardened: "no"}
+  advisory_from: "12.1"
+  warning: "From AXIS OS 12.1 disabling ZeroConf is no longer required (link-local fallback only)."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-009
+  title: HTTPS only (enables HSTS)
+  guide_section: "Legacy hardening > HTTPS only"
+  guide_page: 30
+  csc: ["3"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.BoaGroupPolicy.admin, hardened: "https"}
+    - {name: root.System.BoaGroupPolicy.operator, hardened: "https"}
+    - {name: root.System.BoaGroupPolicy.viewer, hardened: "https"}
+  disruptive: true
+  warning: "Clients using plain HTTP (including some VMS integrations) lose access."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-010
+  title: Allow TLS 1.2 and 1.3 only
+  guide_section: "Legacy hardening > Outdated TLS versions"
+  guide_page: 29
+  csc: ["3"]
+  level: legacy
+  kind: apply
+  method: param
+  params:
+    - {name: root.HTTPS.AllowTLS1, hardened: "no"}
+    - {name: root.HTTPS.AllowTLS11, hardened: "no"}
+  removed_in: "12.0"
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-011
+  title: Secure TLS 1.2 cipher list
+  guide_section: "Basic hardening > HTTPS > HTTPS ciphers"
+  guide_page: 23
+  csc: ["3"]
+  level: basic
+  kind: apply
+  method: param
+  compare: subset
+  params:
+    - name: root.HTTPS.Ciphers
+      hardened: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
+  requires_reboot: true
+  warning: "Takes effect after the HTTPS service restarts."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-012
+  title: Brute-force (DoS) protection settings
+  guide_section: "Default protection > Prevent brute-force attacks"
+  guide_page: 5
+  csc: ["4", "13"]
+  level: default
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.PreventDoSAttack.ActivatePasswordThrottling, hardened: "on", optional: true}  # optional for older firmware; present on 10.12
+    - {name: root.System.PreventDoSAttack.DoSBlockingPeriod, hardened: "10"}
+    - {name: root.System.PreventDoSAttack.DoSPageCount, hardened: "20"}
+    - {name: root.System.PreventDoSAttack.DoSPageInterval, hardened: "1"}
+    - {name: root.System.PreventDoSAttack.DoSSiteCount, hardened: "20"}
+    - {name: root.System.PreventDoSAttack.DoSSiteInterval, hardened: "1"}
+  warning: "Guide footnote (p.34) mentions a 30 s page interval; the recommended setting is DoSPageInterval=1."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-013
+  title: Disable script editor (editcgi)
+  guide_section: "Legacy hardening > Script editor environment"
+  guide_page: 28
+  csc: ["4"]
+  level: legacy
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.EditCgi, hardened: "no"}
+  removed_in: "10.11"   # guide; the parameter is still present on 10.12.252
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-014
+  title: Enable access log
+  guide_section: "Legacy hardening > Access log"
+  guide_page: 29
+  csc: ["1", "8"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.AccessLog, hardened: "On"}
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-015
+  title: ONVIF replay attack protection
+  guide_section: "Default protection > Authentication > ONVIF replay attack protection"
+  guide_page: 5
+  csc: ["3"]
+  level: default
+  kind: apply
+  method: param
+  params:
+    - {name: root.WebService.UsernameToken.ReplayAttackProtection, hardened: "yes"}
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-016
+  title: Disable web interface
+  guide_section: "Basic hardening > Disable unused services/functions > Web interface access"
+  guide_page: 18
+  csc: ["4", "5"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.WebInterfaceDisabled, hardened: "yes"}
+  disruptive: true
+  opt_in: true
+  warning: "People lose browser access; VAPIX/VMS access continues. Re-enable via VAPIX if needed."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-017
+  title: Hide HTTP/OpenSSL server header
+  guide_section: "Basic hardening > Disable unused services/functions > Information disclosure"
+  guide_page: 19
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.System.HTTPServerTokens, hardened: "no"}
+  introduced_in: "10.6"
+  opt_in: true
+  warning: "Can stop vulnerability scanners identifying the device (guide p.19)."
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-018
+  title: Disable anonymous viewer and PTZ access
+  guide_section: "Quickstart guide > Common configuration mistakes > Anonymous access"
+  guide_page: 31
+  csc: ["4", "5"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.RTSP.ProtViewer, hardened: "password", optional: true}
+    - {name: root.System.BoaProtViewer, hardened: "password", optional: true}
+    - {name: root.PTZ.BoaProtPTZOperator, hardened: "password", optional: true}
+  verified_on: ["M4216-LV 10.12.252"]   # PTZ param is model-dependent (optional)
+
+- id: AX-B-019
+  title: Block ACAPs that require root privileges
+  guide_section: "Quickstart guide > Basic hardening via VAPIX API"
+  guide_page: 34
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: applications_config
+  handler_args: {name: AllowRoot, hardened: "false"}
+  # applications/config.cgi returns 404 on M4216-LV 10.12.252 -> NOT_SUPPORTED there.
+
+- id: AX-B-020
+  title: Block unsigned ACAPs
+  guide_section: "Default protection > Applications (ACAPs)"
+  guide_page: 34
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: applications_config
+  handler_args: {name: AllowUnsigned, hardened: "false"}
+  warning: "Signing is enforced by default from AXIS OS 12.0 and mandatory from 13.0."
+
+- id: AX-B-021
+  title: Disable PoE on unused network ports
+  guide_section: "Basic hardening > Interfaces > Network ports"
+  guide_page: 21
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: network_ports
+  handler_args: {kind: poe}
+  introduced_in: "11.2"
+  opt_in: true
+  disruptive: true
+  warning: "Multi-port devices only. Ports come from the inventory 'ports' column and are never guessed. (Phase 3)"
+
+- id: AX-B-022
+  title: Disable network traffic on unused network ports
+  guide_section: "Basic hardening > Interfaces > Network ports"
+  guide_page: 21
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: network_ports
+  handler_args: {kind: traffic}
+  introduced_in: "11.2"
+  opt_in: true
+  disruptive: true
+  warning: "Multi-port devices only. Choosing the wrong port cuts off devices. (Phase 3)"
+
+- id: AX-B-023
+  title: Disable SD card slot (if unused)
+  guide_section: "Basic hardening > Disable unused services/functions > SD card slot(s)"
+  guide_page: 20
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: sd_disk
+  handler_args: {hardened: "no"}
+  opt_in: true
+  warning: "Only if the site does not record to SD card."
+  # Implemented as root.Storage.S<n>.Enabled where DiskID=SD_DISK (M4216-LV 10.12.252 has no SDDiskEnabled param).
+
+- id: AX-B-024
+  title: Disable audio (if unused)
+  guide_section: "Basic hardening > Disable unused services/functions > Audio"
+  guide_page: 20
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: param
+  params:
+    - {name: "root.Audio.A*.Enabled", hardened: "no"}
+  missing_status: na
+  opt_in: true
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-B-025
+  title: Hide basic device info from anonymous users
+  guide_section: "Basic hardening > Disable unused services/functions > Information disclosure"
+  guide_page: 20
+  csc: ["4"]
+  level: basic
+  kind: apply
+  method: handler
+  handler: anon_device_info
+  introduced_in: "11.11"
+  opt_in: true
+  warning: "Can stop vulnerability scanners identifying the device (guide p.19)."
+
+# ---------------------------------------------------------------- CHECK controls (read and report only)
+
+- {id: AX-C-001, title: AXIS OS version, guide_section: "Basic hardening > Commissioning > Upgrade to latest AXIS OS", guide_page: 15, csc: ["2"], level: basic, kind: check, method: handler, handler: os_version}
+- {id: AX-C-002, title: HTTP authentication policy, guide_section: "Default protection > Authentication", guide_page: 5, csc: ["3"], level: default, kind: check, method: handler, handler: auth_policy, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-003, title: Plain HTTP refused or redirected, guide_section: "Legacy hardening > HTTPS only", guide_page: 30, csc: ["3"], level: basic, kind: check, method: handler, handler: http_redirect}
+- {id: AX-C-004, title: HTTPS certificate, guide_section: "Extended hardening > Trusted public key infrastructure (PKI)", guide_page: 24, csc: ["3", "12"], level: extended, kind: check, method: handler, handler: certificate}
+- {id: AX-C-005, title: NTP/NTS time source, guide_section: "Basic hardening > Commissioning > Configure network, date, and time settings", guide_page: 17, csc: ["4", "8", "12"], level: basic, kind: check, method: handler, handler: ntp, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-006, title: Remote syslog, guide_section: "Extended hardening > Remote syslog", guide_page: 25, csc: ["8"], level: extended, kind: check, method: handler, handler: syslog}
+- {id: AX-C-007, title: SNMP off or v3 only, guide_section: "Extended hardening > SNMP", guide_page: 25, csc: ["3", "8"], level: extended, kind: check, method: handler, handler: snmp, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-008, title: Secure streaming (RTSPS/SRTP), guide_section: "Extended hardening > Secure video streaming (SRTP/RTSPS)", guide_page: 25, csc: ["3"], level: extended, kind: check, method: handler, handler: rtsps, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-009, title: Firewall / IP address filter, guide_section: "Basic hardening > Limit network access", guide_page: 22, csc: ["1", "4", "13"], level: basic, kind: check, method: handler, handler: network_filter, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-010, title: IEEE 802.1X, guide_section: "Default protection > Network security > IEEE 802.1X network access control", guide_page: 8, csc: ["6", "13"], level: extended, kind: check, method: handler, handler: dot1x}
+- {id: AX-C-011, title: Signed video, guide_section: "Default protection > Signed video", guide_page: 11, csc: ["3"], level: default, kind: check, method: handler, handler: signed_video}
+- {id: AX-C-012, title: SD card encryption, guide_section: "Basic hardening > Edge storage encryption", guide_page: 17, csc: ["3"], level: basic, kind: check, method: handler, handler: sd_encryption}
+- {id: AX-C-013, title: Installed applications (ACAPs), guide_section: "Default protection > Applications (ACAPs)", guide_page: 6, csc: ["4"], level: default, kind: check, method: handler, handler: applications, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-014, title: Dedicated user accounts, guide_section: "Basic hardening > Commissioning > Create dedicated accounts", guide_page: 16, csc: ["4", "5"], level: basic, kind: check, method: handler, handler: users, verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-015, title: OAuth 2.0 / OpenID Connect, guide_section: "Extended hardening > OAuth 2.0", guide_page: 26, csc: ["4", "5"], level: extended, kind: check, method: handler, handler: manual, handler_args: {note: "Check System > Accounts > OpenID Configuration.", introduced_in: "11.6"}}
+- {id: AX-C-016, title: Strict security mode, guide_section: "Extended hardening > Strict security mode", guide_page: 26, csc: ["1", "3", "4"], level: extended, kind: check, method: handler, handler: manual, handler_args: {note: "Check whether Strict security mode is available and enabled for this device."}}
+- {id: AX-C-017, title: LLDP/CDP, guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols", guide_page: 19, csc: ["4"], level: basic, kind: check, method: handler, handler: lldp, warning: "Disabling LLDP/CDP may affect PoE power negotiation (guide p.19)."}
+- {id: AX-C-018, title: Network filter logging, guide_section: "Basic hardening > Limit network access > IP address filtering", guide_page: 23, csc: ["13"], level: basic, kind: check, method: param, params: [{name: root.Network.Filter.Log.Enabled, hardened: "yes"}], advisory_from: "0.0", verified_on: ["M4216-LV 10.12.252"]}
+- {id: AX-C-019, title: Unique and strong password, guide_section: "Quickstart guide > Common configuration mistakes > Common password", guide_page: 31, csc: ["4", "5"], level: basic, kind: check, method: handler, handler: passwords}

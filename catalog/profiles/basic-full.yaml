@@ -1,0 +1,4 @@
+name: basic-full
+description: Equivalent to Axis's own AXIS Device Manager hardening file (guide p.34) - basic-safe plus web UI off and server header hidden.
+extends: basic-safe
+controls: [AX-B-016, AX-B-017]
