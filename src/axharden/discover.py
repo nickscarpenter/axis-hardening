@@ -106,7 +106,7 @@ def run_discover(camera: Camera, catalog: Catalog, tls: TLSPolicy, output_dir: P
     write_private(out / "apidiscovery.json", json.dumps(apis, indent=1))
     write_private(out / "catalog_diff.json", json.dumps([c.__dict__ for c in result.checks], indent=1))
     fixture_cam = {"host": camera.host, "port": camera.port, "name": camera.name or info.get("ProdNbr", ""),
-                   "site": camera.site, "protocol": camera.protocol, "profile": "", "ports": camera.ports,
+                   "customer": camera.customer, "protocol": camera.protocol, "profile": "", "ports": camera.ports,
                    "notes": "discover fixture", "username": camera.credential.username}
     fixture = {"snapshot_version": SNAPSHOT_VERSION, "tool_version": __version__, "camera": fixture_cam,
                "device": info, "params": sanitise_params(tree.to_dict()), "apis": apis, "probes": probes,

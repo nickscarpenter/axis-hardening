@@ -23,7 +23,7 @@ Write-Host "== source folder + wheels"
 $src = Join-Path $dist "axharden-src"
 New-Item -ItemType Directory -Force $src | Out-Null
 & $py -m pip download -q --require-hashes -r requirements.lock -d (Join-Path $src "wheels")
-foreach ($item in "src","catalog","templates","docs","README.md","SECURITY.md","requirements.lock","requirements.in","pyproject.toml","axharden.cmd","axharden-gui.cmd","axharden.sh") {
+foreach ($item in "src","catalog","templates","docs","README.md","SECURITY.md","requirements.lock","requirements.in","pyproject.toml","axharden-cli.cmd","axharden-gui.cmd","axharden-cli.sh","axharden-gui.sh") {
     if (Test-Path $item) { Copy-Item -Recurse $item $src }
 }
 
@@ -42,5 +42,5 @@ Write-Host "== SBOM"
 & $py -m cyclonedx_py requirements requirements.lock --output-format JSON -o (Join-Path $dist "sbom.cdx.json")
 
 Write-Host "== smoke test"
-& (Join-Path $win "axharden.exe") --version
+& (Join-Path $win "axharden-cli.exe") --version
 Write-Host "Done: $dist"

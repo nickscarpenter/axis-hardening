@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import __version__
 from .audit import AuditSettings, CameraResult, load_fixture_cameras, run_audit, simulated_factory
-from .catalog import CatalogError, load_catalog, load_profile
+from .catalog import CatalogError, list_profiles, load_catalog, load_profile, user_profiles_dir
 from .evaluate import NON_COMPLIANT, compliance_pct
 from .inventory import InventoryError, load_inventory, password_findings, write_templates
 from .logging_setup import setup_logging
@@ -44,10 +44,10 @@ def _load_cameras(args: argparse.Namespace):
         for m in e.errors:
             print(f"  - {m}", file=sys.stderr)
         raise SystemExit(2)
-    if getattr(args, "site", None):
-        cams = [c for c in cams if c.site.lower() == args.site.lower()]
+    if getattr(args, "customer", None):
+        cams = [c for c in cams if c.customer.lower() == args.customer.lower()]
         if not cams:
-            raise SystemExit(f"error: no cameras with site {args.site!r}")
+            raise SystemExit(f"error: no cameras with customer {args.customer!r}")
     return cams
 
 
@@ -73,9 +73,17 @@ def cmd_inventory_template(args: argparse.Namespace) -> int:
 def cmd_inventory_check(args: argparse.Namespace) -> int:
     cams = _load_cameras(args)
     print(f"{len(cams)} camera(s) OK\n")
-    print(f"{'host':<28} {'name':<22} {'site':<14} {'proto':<6} {'user':<12} password")
+    print(f"{'host':<28} {'name':<22} {'customer':<14} {'proto':<6} {'user':<12} password")
     for c in cams:
-        print(f"{c.address:<28} {c.name[:22]:<22} {c.site[:14]:<14} {c.protocol:<6} {c.credential.username[:12]:<12} ********")
+        print(f"{c.address:<28} {c.name[:22]:<22} {c.customer[:14]:<14} {c.protocol:<6} {c.credential.username[:12]:<12} ********")
+    new = [c for c in cams if c.new_accounts]
+    if new:
+        from .vapix.users import role_label
+        print(f"\nNew accounts to create (with 'accounts' / Create accounts... in the GUI):")
+        for c in new:
+            for a in c.new_accounts:
+                pw = "********" if a.credential.password else "(asked for when created)"
+                print(f"  {c.address:<28} {a.username:<20} {role_label(a.role, a.ptz):<22} {pw}")
     pf = password_findings(cams)
     for g in pf.shared_groups:
         print(f"\nWARNING common password (guide p.31) shared by: {', '.join(g)}")
@@ -133,14 +141,17 @@ def _cameras_and_factory(args: argparse.Namespace):
 def _settings(args: argparse.Namespace, simulated: bool) -> AuditSettings:
     return AuditSettings(tls=TLSPolicy() if simulated else _tls(args), workers=args.workers,
                          timeout=args.timeout, min_delay=args.delay_ms / 1000.0,
-                         min_axis_os=args.min_axis_os, operator=_operator(args))
+                         min_axis_os=args.min_axis_os, operator=_operator(args),
+                         customer=getattr(args, "customer_name", None) or "", site_name=getattr(args, "site_name", None) or "")
 
 
-def _print_camera(r: CameraResult) -> None:
+def _print_camera(r: CameraResult, baseline=None) -> None:
+    from .evaluate import baseline_view
     name = r.camera.get("name") or r.camera["host"]
     if r.reachable:
-        p = compliance_pct(r.results)
-        nc = sum(x.status == NON_COMPLIANT for x in r.results)
+        res = baseline_view(r.results, baseline.control_ids, baseline.name)             if baseline is not None and baseline.name != "audit-only" else r.results
+        p = compliance_pct(res)
+        nc = sum(x.status == NON_COMPLIANT for x in res)
         print(f"  {name:<30} {r.device.get('Version', ''):<12} {r.status:<13} "
               f"{'' if p is None else f'{p:.0f}% compliant'}, {nc} non-compliant")
     else:
@@ -150,18 +161,39 @@ def _print_camera(r: CameraResult) -> None:
 def _audit(args, catalog, profile, cams, factory, simulated):
     settings = _settings(args, simulated)
     pf = password_findings(cams) if not simulated else password_findings([])
-    print(f"Auditing {len(cams)} camera(s) with profile '{profile.name}' ({len(profile.control_ids)} controls)...")
+    against = "every control" if profile.name == "audit-only" else f"the '{profile.name}' baseline"
+    print(f"Checking {len(cams)} camera(s) against {against}...")
     run_id, run_dir, results = run_audit(cams, catalog, profile, settings, pf, Path(args.output_dir),
-                                         client_factory=factory, progress=_print_camera, simulated=simulated)
+                                         client_factory=factory, progress=lambda r: _print_camera(r, profile),
+                                         simulated=simulated)
     print(f"\nAudit run {run_id} saved to {run_dir}")
     return settings, pf, run_id, run_dir, results
 
 
+def _profile_dirs(args) -> list[Path]:
+    return [user_profiles_dir(args.output_dir)]
+
+
 def _profile(args, catalog):
     try:
-        return load_profile(args.profile, catalog)
+        return load_profile(args.profile, catalog, extra_dirs=_profile_dirs(args))
     except CatalogError as e:
         raise SystemExit(f"error: {e}")
+
+
+def _loader(args, catalog):
+    return lambda n: load_profile(n, catalog, extra_dirs=_profile_dirs(args))
+
+
+def cmd_profile_list(args: argparse.Namespace) -> int:
+    catalog = load_catalog(args.catalog)
+    for p in list_profiles(catalog, _profile_dirs(args)):
+        n = sum(catalog.get(i).kind == "apply" for i in p.control_ids)
+        kind = "built-in" if p.builtin else f"custom ({p.path})"
+        print(f"{p.name:<24} {n:>2} changeable controls  {kind}")
+        if p.description:
+            print(f"    {p.description}")
+    return 0
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
@@ -193,7 +225,8 @@ def _print_plan(plans) -> int:
     else:
         print(f"  {'camera':<24} {'control':<9} {'setting':<46} {'now':<10} -> new")
         for r in rows:
-            flags = (" [DISRUPTIVE]" if r["disruptive"] else "") + (" [needs restart]" if r["reboot"] else "")
+            flags = ((" [DISRUPTIVE]" if r["disruptive"] else "") + (" [needs restart]" if r["reboot"] else "") +
+                     (" [back to default]" if r.get("revert") else ""))
             cur = "" if r["current"] is None else str(r["current"])
             new = str(r["new"])
             cur = cur if len(cur) <= 10 else cur[:9] + "~"
@@ -204,6 +237,10 @@ def _print_plan(plans) -> int:
             print("\n  Notes:")
             for cid, w in sorted(warned):
                 print(f"   {cid}: {w}")
+    n_revert = len({(r["host"], r["control"]) for r in rows if r.get("revert")})
+    if n_revert:
+        print(f"\n  {n_revert} setting(s) marked [back to default] are not in this profile, so they go back to the "
+              "AXIS OS factory default (less secure). Use --controls to change only specific controls.")
     for p in plans:
         for cid, reason in p.skipped:
             if cid == "*":
@@ -217,7 +254,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
     profile = _profile(args, catalog)
     cams, factory, simulated = _cameras_and_factory(args)
     _, _, _, run_dir, results = _audit(args, catalog, profile, cams, factory, simulated)
-    plans = make_plan(results, cams, catalog, profile, lambda n: load_profile(n, catalog), _controls_arg(args, catalog))
+    plans = make_plan(results, cams, catalog, profile, _loader(args, catalog), _controls_arg(args, catalog))
     _print_plan(plans)
     doc = [{"camera": p.camera.host, "changes": [c.to_dict() for c in p.changes], "skipped": p.skipped} for p in plans]
     (run_dir / "plan.json").write_text(json.dumps(doc, indent=1), encoding="utf-8")
@@ -234,7 +271,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
                          "audit-only would include opt-in controls")
     cams, factory, simulated = _cameras_and_factory(args)
     settings, pf, audit_id, _, results = _audit(args, catalog, profile, cams, factory, simulated)
-    plans = make_plan(results, cams, catalog, profile, lambda n: load_profile(n, catalog), _controls_arg(args, catalog))
+    plans = make_plan(results, cams, catalog, profile, _loader(args, catalog), _controls_arg(args, catalog))
     n = _print_plan(plans)
     if n == 0:
         return 0
@@ -267,7 +304,168 @@ def cmd_apply(args: argparse.Namespace) -> int:
         print(f"Undo with:  axharden rollback --run {run_id} --inventory <file>")
     if not args.no_report:
         _write_reports(run_dir, catalog, args.classification)
-    return 0 if all(r.status == "OK" for r in out if r.changes) else 1
+    rc = 0 if all(r.status == "OK" for r in out if r.changes) else 1
+    from .restart import needs_restart
+    hosts = needs_restart(out)
+    if hosts and args.restart:
+        print(f"\nRestarting {len(hosts)} camera(s) so the changes take effect (--restart)...")
+        rc = max(rc, _do_restart(args, catalog, [c for c in cams if c.host in hosts], factory, simulated, confirmed,
+                                 f"after apply run {run_id}"))
+    elif hosts:
+        print(f"\n{len(hosts)} camera(s) need a restart for some changes to take effect. Restart them with:\n"
+              f"  axharden restart --inventory <file> --camera {','.join(hosts)}")
+    return rc
+
+
+def _do_restart(args, catalog, cams, factory, simulated: bool, confirmed: str, reason: str) -> int:
+    from .restart import run_restart
+
+    def progress(r: CameraResult) -> None:
+        ch = r.changes[0] if r.changes else {}
+        print(f"  {r.camera.get('name') or r.camera['host']:<30} {ch.get('status', r.status):<9} "
+              f"{ch.get('detail', '')} {r.error}")
+    wait = {"timeout": 5, "poll": 0, "down_wait": 0} if simulated else {}
+    run_id, run_dir, out = run_restart(cams, catalog, _settings(args, simulated), Path(args.output_dir), confirmed,
+                                       client_factory=factory, progress=progress, simulated=simulated, reason=reason,
+                                       **wait)
+    print(f"Restart run {run_id} saved to {run_dir}")
+    if not getattr(args, "no_report", False):
+        _write_reports(run_dir, catalog, args.classification)
+    return 0 if all(r.status == "OK" for r in out) else 1
+
+
+def cmd_restart(args: argparse.Namespace) -> int:
+    catalog = load_catalog(args.catalog)
+    cams, factory, simulated = _cameras_and_factory(args)
+    if args.camera:
+        wanted = {h.strip().lower() for h in args.camera.split(",") if h.strip()}
+        cams = [c for c in cams if c.host.lower() in wanted or c.address.lower() in wanted]
+        if not cams:
+            raise SystemExit(f"error: none of {args.camera} is in the camera list")
+    print("CAMERAS TO RESTART (video and recording stop for about 1-3 minutes each):")
+    for c in cams:
+        print(f"  {c.label}")
+    confirmed = _confirm(args, f"Restart {len(cams)} camera(s)?")
+    return _do_restart(args, catalog, cams, factory, simulated, confirmed, "requested")
+
+
+def _confirm(args, question: str) -> str:
+    if args.yes:
+        return "--yes"
+    if not sys.stdin.isatty():
+        raise SystemExit("error: not interactive; re-run with --yes to confirm")
+    if input(f"\n{question}\nType YES to continue: ").strip() != "YES":
+        print("Cancelled. Nothing was changed.")
+        raise SystemExit(1)
+    return "interactive"
+
+
+def _print_account_result(r: CameraResult) -> None:
+    for c in r.changes:
+        print(f"  {r.camera.get('name') or r.camera['host']:<30} {c.get('status', ''):<9} {c.get('title', '')}"
+              f"  {c.get('detail', '')} {r.error}")
+
+
+def cmd_accounts(args: argparse.Namespace) -> int:
+    from . import accounts as A
+    from .inventory import Credential, NewAccount, ask_new_password
+    from .vapix.users import ROLE_HELP, parse_role, password_problem, role_label, username_problem
+    catalog = load_catalog(args.catalog)
+    cams, factory, simulated = _cameras_and_factory(args)
+    typed = []
+    if args.user2 and not args.user:
+        raise SystemExit("error: --user2 needs --user as well")
+    for opt, user, role_text, ptz_flag in (("--user", args.user, args.role, args.ptz),
+                                           ("--user2", args.user2, args.role2, args.ptz2)):
+        if not user:
+            continue
+        try:
+            role, ptz = parse_role(role_text + ("+ptz" if ptz_flag else ""))
+        except ValueError as e:
+            raise SystemExit(f"error: {opt} role: {e}")
+        prob = username_problem(user)
+        if prob:
+            raise SystemExit(f"error: {opt}: {prob}")
+        if not sys.stdin.isatty():
+            raise SystemExit("error: the new password is typed in; run this interactively")
+        pw = ask_new_password(user)
+        prob = password_problem(pw, user)
+        if prob:
+            raise SystemExit(f"error: {prob}")
+        typed.append(NewAccount(Credential(user, pw), role, ptz))
+    todo = A.with_accounts(cams, typed)
+    if not todo:
+        raise SystemExit("error: no accounts to create. Fill in new_username (and new_role / new_password) in the "
+                         "camera list, or give --user NAME --role viewer|operator|admin.")
+    if any(not a.credential.password for c in todo for a in c.new_accounts):
+        if not sys.stdin.isatty():
+            raise SystemExit("error: some new_password cells are blank; run interactively to type them")
+        A.fill_passwords(todo, ask_new_password)
+    problems = A.account_problems(todo, args.remove_login)
+    if problems:
+        _err("cannot create these accounts:")
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        raise SystemExit(2)
+    print("\nACCOUNTS TO CREATE (existing accounts with the same name are left unchanged)")
+    for c in todo:
+        for a in c.new_accounts:
+            print(f"  {c.label:<36} {a.username:<20} {role_label(a.role, a.ptz)}")
+    for role in sorted({a.role for c in todo for a in c.new_accounts}):
+        print(f"  ({ROLE_HELP[role]})")
+    for g in A.shared_new_passwords(todo):
+        print(f"  WARNING: {len(g)} new accounts share the same password (guide p.31): {', '.join(g[:5])}")
+    n = sum(len(c.new_accounts) for c in todo)
+    question = f"Create {n} account(s) on {len(todo)} camera(s)?"
+    if args.remove_login:
+        logins = sorted({c.credential.username for c in todo})
+        print(f"\nTHEN REMOVE THE LOGIN ACCOUNT ({', '.join(logins)}) on each camera, logged in as the new "
+              "Administrator, once that account has been checked. Update the camera list afterwards: the tool "
+              "must then log in with the new Administrator account.")
+        question = f"Create {n} account(s) and remove the login account on {len(todo)} camera(s)?"
+    confirmed = _confirm(args, question)
+    settings = _settings(args, simulated)
+    run_id, run_dir, out = A.run_create_accounts(todo, catalog, settings, Path(args.output_dir), confirmed,
+                                                 client_factory=factory, progress=_print_account_result,
+                                                 simulated=simulated, remove_login=args.remove_login)
+    moved = A.login_changes(out)
+    if moved:
+        print("\nLOGIN ACCOUNT REMOVED. Update the camera list: log in with these accounts from now on:")
+        for host, user in sorted(moved.items()):
+            print(f"  {host:<28} {user}")
+    print(f"\nAccount run {run_id} saved to {run_dir}")
+    if not simulated:
+        print(f"Undo (removes the accounts created by this run):  axharden-cli rollback --run {run_id} --inventory <file>")
+    if not args.no_report:
+        _write_reports(run_dir, catalog, args.classification)
+    return 0 if all(c.get("status") in ("verified", "skipped") and r.status == "OK"
+                    for r in out for c in r.changes) else 1
+
+
+def _rollback_accounts(args, catalog, run_dir: Path) -> int:
+    from . import accounts as A
+    import getpass
+    cams = _load_cameras(args)
+
+    def ask(username: str, why: str) -> str | None:
+        if not sys.stdin.isatty():
+            return None
+        return getpass.getpass(f"Password for '{username}' (needed to {why}): ") or None
+    try:
+        _, jobs = A.build_account_undo(run_dir, cams, args.camera, ask=ask)
+    except ValueError as e:
+        raise SystemExit(f"error: {e}")
+    if not jobs:
+        print("Nothing to undo: that run created no accounts.")
+        return 0
+    for job in jobs:
+        print(f"  {job.camera.label:<36} {job.summary}")
+    confirmed = _confirm(args, f"Undo the account changes of run {args.run} on {len(jobs)} camera(s)?")
+    run_id, out_dir, out = A.run_account_undo(run_dir, jobs, catalog, _settings(args, False), Path(args.output_dir),
+                                              confirmed, progress=_print_account_result)
+    print(f"\nUndo run {run_id} saved to {out_dir}")
+    _write_reports(out_dir, catalog, args.classification)
+    return 0 if all(r.status == "OK" for r in out) else 1
 
 
 def cmd_rollback(args: argparse.Namespace) -> int:
@@ -276,6 +474,8 @@ def cmd_rollback(args: argparse.Namespace) -> int:
     apply_dir = Path(args.output_dir) / "runs" / args.run
     if not (apply_dir / "run.json").exists():
         raise SystemExit(f"error: run not found: {apply_dir}")
+    if json.loads((apply_dir / "run.json").read_text(encoding="utf-8")).get("kind") == "accounts":
+        return _rollback_accounts(args, catalog, apply_dir)
     cams = _load_cameras(args)
     try:
         _, plans = build_rollback(apply_dir, cams, args.camera, _controls_arg(args, catalog))
@@ -355,7 +555,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.set_defaults(func=cmd_inventory_template)
     c = isub.add_parser("check", help="validate an inventory (no network)")
     c.add_argument("--inventory", required=True)
-    c.add_argument("--site")
+    c.add_argument("--customer", help="only cameras of this customer")
     c.set_defaults(func=cmd_inventory_check)
 
     d = sub.add_parser("discover", help="dump a reference camera and diff it against the catalog")
@@ -367,14 +567,17 @@ def build_parser() -> argparse.ArgumentParser:
     def run_opts(sp: argparse.ArgumentParser, default_profile: str) -> None:
         sp.add_argument("--inventory")
         sp.add_argument("--simulate", metavar="PATH", help="use fixture/snapshot JSON files instead of cameras")
-        sp.add_argument("--site")
+        sp.add_argument("--customer", help="only cameras of this customer (customer column)")
+        sp.add_argument("--customer-name", help="customer name shown on the report (free text)")
+        sp.add_argument("--site-name", help="site name shown on the report (free text)")
         sp.add_argument("--profile", default=default_profile)
         sp.add_argument("--workers", type=int, default=8)
         sp.add_argument("--timeout", type=float, default=10.0)
         sp.add_argument("--delay-ms", type=int, default=100, help="minimum gap between requests to one camera")
         sp.add_argument("--min-axis-os", default="10.0", help="flag cameras below this AXIS OS version")
         sp.add_argument("--operator", help="operator name for the report (prompted if omitted)")
-        sp.add_argument("--classification", default="", help='marking shown on the report, e.g. "OFFICIAL-SENSITIVE"')
+        sp.add_argument("--classification", default="", help="marking shown on the report: TLP:CLEAR, TLP:GREEN, TLP:AMBER, "
+                        "TLP:AMBER+STRICT or TLP:RED (coloured, with its meaning), or any other text")
         sp.add_argument("--no-report", action="store_true")
         net(sp)
 
@@ -391,10 +594,33 @@ def build_parser() -> argparse.ArgumentParser:
     run_opts(ap, "basic-safe")
     ap.add_argument("--controls", help="only these control IDs, e.g. AX-B-001,AX-B-005")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation (logged)")
+    ap.add_argument("--restart", action="store_true",
+                    help="afterwards, restart the cameras that need it for a change to take effect (e.g. TLS ciphers)")
     ap.set_defaults(func=cmd_apply)
 
-    rb = sub.add_parser("rollback", help="restore the previous values written by an apply run")
-    rb.add_argument("--run", required=True, help="apply run ID")
+    rs = sub.add_parser("restart", help="restart cameras (e.g. after a TLS cipher change) and wait until they answer")
+    run_opts(rs, "audit-only")
+    rs.add_argument("--camera", help="only these cameras (comma-separated IPs/hosts); default: all selected")
+    rs.add_argument("--yes", action="store_true")
+    rs.set_defaults(func=cmd_restart)
+
+    ac = sub.add_parser("accounts", help="create a separate camera account (viewer/operator/admin) on each camera")
+    run_opts(ac, "audit-only")
+    ac.add_argument("--user", help="create this account on every selected camera (else use the new_username "
+                                   "column of the camera list); the password is typed in, never stored")
+    ac.add_argument("--role", default="viewer", help="viewer (default), operator or admin")
+    ac.add_argument("--ptz", action="store_true", help="also allow PTZ control")
+    ac.add_argument("--user2", help="a second account to create on every selected camera (password typed in)")
+    ac.add_argument("--role2", default="viewer", help="role of --user2: viewer (default), operator or admin")
+    ac.add_argument("--ptz2", action="store_true", help="also allow PTZ control for --user2")
+    ac.add_argument("--remove-login", action="store_true",
+                    help="after creating the accounts, remove the account the tool logged in with (e.g. root). "
+                         "Needs one new Administrator account; it is checked and used to do the removal")
+    ac.add_argument("--yes", action="store_true")
+    ac.set_defaults(func=cmd_accounts)
+
+    rb = sub.add_parser("rollback", help="undo an apply run (restore values) or an accounts run (remove accounts)")
+    rb.add_argument("--run", required=True, help="apply or accounts run ID")
     rb.add_argument("--inventory", required=True)
     rb.add_argument("--camera", help="only this camera IP/host")
     rb.add_argument("--controls", help="only these control IDs")
@@ -405,7 +631,7 @@ def build_parser() -> argparse.ArgumentParser:
     rb.add_argument("--timeout", type=float, default=10.0)
     rb.add_argument("--delay-ms", type=int, default=100)
     rb.add_argument("--min-axis-os", default="10.0")
-    rb.add_argument("--site")
+    rb.add_argument("--customer")
     net(rb)
     rb.set_defaults(func=cmd_rollback)
 
@@ -413,6 +639,11 @@ def build_parser() -> argparse.ArgumentParser:
     lsub = lg.add_subparsers(dest="log_command", required=True)
     lv = lsub.add_parser("verify", help="check the audit log hash chain is intact")
     lv.set_defaults(func=cmd_log_verify)
+
+    pr = sub.add_parser("profile", help="hardening profiles (custom ones are made in the GUI)")
+    psub = pr.add_subparsers(dest="profile_command", required=True)
+    pls = psub.add_parser("list", help="list built-in and custom profiles (custom: <output-dir>/profiles)")
+    pls.set_defaults(func=cmd_profile_list)
 
     r = sub.add_parser("report", help="(re)generate the HTML/CSV/JSON report for a run")
     r.add_argument("--run", required=True)

@@ -1,0 +1,8 @@
+name: factory-defaults
+description: >
+  Back to firmware defaults: puts every setting this tool can change back to the AXIS OS factory default for the
+  camera's own version (e.g. UPnP stays off on 12.0+, brute-force protection stays on from 11.5). Undoes all
+  hardening and makes the cameras LESS SECURE. The TLS cipher list is never changed (its default differs per
+  version). Accounts, passwords, network and recording settings are not touched.
+include_checks: true
+controls: []

@@ -109,7 +109,7 @@ def sd_disk(ctl: Control, ctx: AuditContext) -> ControlResult:
         return ControlResult(ctl.id, NA, {}, "No SD card slot found.")
     bad = [f"{k}={val}" for k, val in observed.items() if (val or "").lower() != want]
     return ControlResult(ctl.id, NON_COMPLIANT if bad else COMPLIANT, observed,
-                         ("SD card slot enabled: " + "; ".join(bad)) if bad else "")
+                         "")
 
 
 @handler("anon_device_info")
@@ -184,8 +184,9 @@ def certificate(ctl: Control, ctx: AuditContext) -> ControlResult:
     if issuer == subject:
         return ControlResult(ctl.id, NON_COMPLIANT, observed, "Self-signed certificate. Replace with a CA-signed one (p.24).")
     if "axis" in org:
-        return ControlResult(ctl.id, INFO, observed,
-                             "Axis-issued certificate (802.1AR device ID). Acceptable; a site CA-signed certificate is best (p.24).")
+        return ControlResult(ctl.id, COMPLIANT, observed,
+                             "Axis-issued certificate (802.1AR device ID): acceptable. A certificate from your own CA is "
+                             "best (p.24).")
     return ControlResult(ctl.id, COMPLIANT, observed, "CA-signed certificate.")
 
 
@@ -200,6 +201,7 @@ def ntp(ctl: Control, ctx: AuditContext) -> ControlResult:
                 "BootProto": p.get("root.Network.BootProto"), "SyncSource": p.get("root.Time.SyncSource")}
     if nts:
         observed["nts"] = nts
+    observed["raw"] = _raw(p, TIME_PARAMS)
     if not p.group("root.Time"):
         return ControlResult(ctl.id, NOT_SUPPORTED, observed, "No Time parameters; check the time API manually.")
     if servers:
@@ -213,6 +215,97 @@ def ntp(ctl: Control, ctx: AuditContext) -> ControlResult:
     return ControlResult(ctl.id, NON_COMPLIANT, observed, "No NTP server configured.")
 
 
+TIME_PARAMS = ("root.Time.NTP.Server", "root.Time.ObtainFromDHCP", "root.Time.SyncSource", "root.Time.POSIXTimeZone",
+               "root.Time.TimeZone")
+NAME_DNS_PARAMS = ("root.Network.HostName", "root.Network.VolatileHostName.ObtainFromDHCP",
+                   "root.Network.Resolver.ObtainFromDHCP", "root.Network.Resolver.NameServer1",
+                   "root.Network.Resolver.NameServer2")
+
+
+def _raw(p, names) -> dict[str, str]:
+    """{camera's own spelling: value} for the names that exist (used by Fix problems to plan writes)."""
+    out = {}
+    for n in names:
+        actual = p.actual_name(n)
+        if actual is not None:
+            out[actual] = p.values[actual]
+    return out
+
+
+NETSET_PATH = "/axis-cgi/network_settings.cgi"
+RESOLVER_KEYS = ("useDhcpResolverInfo", "staticNameServers", "staticSearchDomains", "staticDomainName")
+
+
+def http_post_json(ctx: AuditContext, path: str, payload: dict) -> dict:
+    """Authenticated JSON POST that records status + body (replayed in simulate mode)."""
+    def live() -> dict:
+        try:
+            r = ctx.client.post_json(path, payload, ok_statuses=(200, 400, 404, 405, 500, 501))
+            return {"status": r.status_code, "text": r.text[:200_000]}
+        except CameraError as e:
+            if e.code == "AUTH_FAILED":
+                raise
+            return {"status": getattr(e, "status", None), "error": str(e)}
+    return ctx.probe(f"POST {path} {payload.get('method')}", live)
+
+
+def network_resolver(ctx: AuditContext) -> tuple[dict | None, str]:
+    """(system.resolver from the Network settings API, apiVersion) or (None, '') if the API is not there.
+    AXIS OS 10.12 refuses DNS writes through param.cgi (401), so DNS is read and set through this API."""
+    import json
+    if "network-settings" not in ctx.api_ids:
+        return None, ""
+    res = http_post_json(ctx, NETSET_PATH, {"apiVersion": "1.0", "method": "getSupportedVersions"})
+    try:
+        versions = json.loads(res.get("text") or "{}").get("data", {}).get("apiVersions") or []
+    except ValueError:
+        versions = []
+    ver = max((x for x in versions if str(x).startswith("1.")), key=lambda x: [int(n) for n in str(x).split(".")],
+              default="1.0")
+    res = http_post_json(ctx, NETSET_PATH, {"apiVersion": ver, "method": "getNetworkInfo", "params": {}})
+    if res.get("status") != 200:
+        return None, ""
+    try:
+        data = json.loads(res["text"]).get("data") or {}
+    except ValueError:
+        return None, ""
+    resolver = (data.get("system") or {}).get("resolver")
+    return (resolver, ver) if isinstance(resolver, dict) else (None, "")
+
+
+@handler("name_dns")
+def name_dns(ctl: Control, ctx: AuditContext) -> ControlResult:
+    p = ctx.params
+    raw = _raw(p, NAME_DNS_PARAMS)
+    resolver, ver = network_resolver(ctx)
+    if not raw and resolver is None:
+        return ControlResult(ctl.id, NOT_SUPPORTED, {}, "No host name / DNS settings found.")
+    if resolver is not None:
+        dhcp = bool(resolver.get("useDhcpResolverInfo"))
+        servers = list(resolver.get("nameServers") or resolver.get("staticNameServers") or [])
+    else:
+        servers = [v for k, v in raw.items() if "NameServer" in k and v and v not in ("0.0.0.0", "::")]
+        dhcp = (p.get("root.Network.Resolver.ObtainFromDHCP") or "").lower() == "yes"
+    host = p.get("root.Network.HostName") or "(not set)"
+    dns = ("from DHCP" if dhcp else ", ".join(servers) or "none configured")
+    observed = {"hostname": host, "dns_servers": servers, "dns_from_dhcp": dhcp, "raw": raw}
+    if resolver is not None:
+        observed["resolver"] = {k: resolver.get(k) for k in RESOLVER_KEYS}
+        observed["netset_version"] = ver
+    return ControlResult(ctl.id, INFO, observed, f"Host name {host}; DNS {dns}.")
+
+
+def _syslog_target(server: Any) -> str:
+    """Best-effort 'address[:port]' from one entry of the Remote Syslog status reply."""
+    if not isinstance(server, dict):
+        return str(server)
+    inner = server.get("server")
+    addr = (inner.get("address") or inner.get("host")) if isinstance(inner, dict) else inner
+    addr = addr or server.get("address") or server.get("host") or "?"
+    port = server.get("port")
+    return f"{addr}:{port}" if port else str(addr)
+
+
 @handler("syslog")
 def syslog(ctl: Control, ctx: AuditContext) -> ControlResult:
     params = ctx.params.group("root.RemoteSyslog")
@@ -221,8 +314,25 @@ def syslog(ctl: Control, ctx: AuditContext) -> ControlResult:
         return ControlResult(ctl.id, COMPLIANT if enabled else NON_COMPLIANT, params,
                              "" if enabled else "Remote syslog not enabled.")
     if "remote-syslog" in ctx.api_ids:
-        return ControlResult(ctl.id, INFO, {"api": "remote-syslog"},
-                             "Remote syslog API present; check the target and TLS setting manually (System > Logs).")
+        # Remote Syslog API, method "status" (confirmed on M4216-LV 10.12.252): {"data": {"enabled":.., "servers":[..]}}
+        import json
+        res = http_post_json(ctx, "/axis-cgi/remotesyslog.cgi", {"apiVersion": "1.0", "method": "status"})
+        try:
+            data = json.loads(res.get("text") or "{}").get("data") if res.get("status") == 200 else None
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            servers = data.get("servers") or []
+            enabled = bool(data.get("enabled"))
+            observed = {"enabled": enabled, "servers": servers}
+            if not enabled or not servers:
+                return ControlResult(ctl.id, NON_COMPLIANT, observed,
+                                     "Remote syslog is disabled: logs stay on the camera only (p.25).")
+            text = json.dumps(servers).lower()
+            tls = "tls" in text
+            names = [_syslog_target(s) for s in servers]
+            detail = f"Sending to {', '.join(names) or len(servers)}" + ("" if tls else "; not over TLS (TLS recommended).")
+            return ControlResult(ctl.id, COMPLIANT, observed, detail.rstrip(".") + ".")
     return ControlResult(ctl.id, INFO, {}, "Remote syslog configuration could not be read; check manually.")
 
 
@@ -248,8 +358,9 @@ def rtsps(ctl: Control, ctx: AuditContext) -> ControlResult:
         return ControlResult(ctl.id, NOT_SUPPORTED, {}, "RTSPS parameter not present.")
     if val.lower() == "yes":
         return ControlResult(ctl.id, COMPLIANT, {"RTSPS.Enabled": val})
-    return ControlResult(ctl.id, INFO, {"RTSPS.Enabled": val},
-                         "RTSPS/SRTP disabled. Enable it if the VMS supports it (advisory, p.25).")
+    return ControlResult(ctl.id, NON_COMPLIANT, {"RTSPS.Enabled": val},
+                         "RTSPS/SRTP is disabled, so video is streamed unencrypted. Enable it in the camera and the VMS "
+                         "(p.25).")
 
 
 @handler("network_filter")
@@ -279,10 +390,16 @@ def dot1x(ctl: Control, ctx: AuditContext) -> ControlResult:
     on = any(val.lower() == "yes" for val in found.values())
     status = {k: val for k, val in ctx.params.match("root.Network.*dot1x.Status")}
     found.update(status)
-    detail = f"802.1X {'enabled' if on else 'disabled'} (report only)."
-    if on and status:
-        detail += " Port status: " + ", ".join(status.values()) + "."
-    return ControlResult(ctl.id, INFO, found, detail)
+    if not on:
+        return ControlResult(ctl.id, NON_COMPLIANT, found,
+                             "802.1X is disabled: the switch port does not check the camera's identity (p.8).")
+    states = [s for s in status.values() if s]
+    if states and not all(s.lower() == "authorized" for s in states):
+        return ControlResult(ctl.id, NON_COMPLIANT, found,
+                             f"802.1X is enabled but the port is {', '.join(states)}: check the certificate and the "
+                             "RADIUS/switch setup.")
+    return ControlResult(ctl.id, COMPLIANT, found,
+                         "802.1X is enabled" + (f" and the port is {states[0]}." if states else "."))
 
 
 @handler("signed_video")
@@ -291,7 +408,7 @@ def signed_video(ctl: Control, ctx: AuditContext) -> ControlResult:
     if found:
         off = [k for k, val in found.items() if val.lower() != "yes"]
         return ControlResult(ctl.id, NON_COMPLIANT if off else COMPLIANT, found,
-                             ("Signed video off: " + ", ".join(off)) if off else "")
+                             (f"Signed video is disabled on {len(off)} of {len(found)} video channel(s).") if off else "")
     if "signed-video" in ctx.api_ids:
         return ControlResult(ctl.id, INFO, {"api": "signed-video"},
                              "Signed video API present but not in the parameter tree; check Plain config > Image manually.")
@@ -303,6 +420,24 @@ def sd_encryption(ctl: Control, ctx: AuditContext) -> ControlResult:
     sd_keys = [k.rsplit(".", 1)[0] for k, did in ctx.params.match("root.Storage.S*.DiskID") if did.upper() == "SD_DISK"]
     if not sd_keys:
         return ControlResult(ctl.id, NA, {}, "No SD card slot.")
+    # Disk management API (confirmed on M4216-LV 10.12.252): <disk diskid="SD_DISK" status=".." diskencrypted=".."/>
+    if "disk-management" in ctx.api_ids:
+        res = http_get(ctx, "/axis-cgi/disks/list.cgi?diskid=all")
+        disk = None
+        if res.get("status") == 200:
+            m = re.search(r'<disk\s[^>]*diskid="SD_DISK"[^>]*/?>', res.get("text") or "")
+            if m:
+                disk = dict(re.findall(r'(\w+)="([^"]*)"', m.group(0)))
+        if disk is not None:
+            observed = {k: disk.get(k) for k in ("status", "encryptionenabled", "diskencrypted", "filesystem")}
+            status = (disk.get("status") or "").lower()
+            encrypted = (disk.get("diskencrypted") or "").lower() == "true"
+            if status in ("disconnected", "missing", ""):
+                return ControlResult(ctl.id, NA, observed, "No SD card inserted.")
+            if encrypted:
+                return ControlResult(ctl.id, COMPLIANT, observed, "SD card is encrypted.")
+            return ControlResult(ctl.id, NON_COMPLIANT, observed,
+                                 f"SD card ({status}) is not encrypted. Encrypt it under System > Storage (p.17).")
     enc = {k: val for base in sd_keys for k, val in ctx.params.match(base + ".*Encrypt*")}
     if enc:
         return ControlResult(ctl.id, INFO, enc, "Encryption settings found; confirm encryption is active if a card is used.")
@@ -332,22 +467,15 @@ def applications(ctl: Control, ctx: AuditContext) -> ControlResult:
 
 @handler("users")
 def users(ctl: Control, ctx: AuditContext) -> ControlResult:
+    from .users import roles_from_groups
     groups = _pwdgrp(ctx)
-    accounts = groups.get("digusers") or groups.get("users") or []
-    role = {}
-    for acct in accounts:
-        if acct in groups.get("admin", []):
-            role[acct] = "admin"
-        elif acct in groups.get("operator", []):
-            role[acct] = "operator"
-        elif acct in groups.get("viewer", []):
-            role[acct] = "viewer"
-        else:
-            role[acct] = "unknown"
+    found = roles_from_groups(groups)
+    accounts = list(found)
+    role = {a: v["role"] + ("+ptz" if v["ptz"] else "") for a, v in found.items()}
     observed = {"accounts": role, "anonymous_group": groups.get("anonymous", [])}
     if not accounts:
         return ControlResult(ctl.id, ERROR, observed, "Could not determine user accounts.")
-    non_admin = [a for a, r in role.items() if r in ("operator", "viewer")]
+    non_admin = [a for a, v in found.items() if v["role"] in ("operator", "viewer")]
     summary = ", ".join(f"{a} ({r})" for a, r in role.items())
     if not non_admin:
         return ControlResult(ctl.id, NON_COMPLIANT, observed,

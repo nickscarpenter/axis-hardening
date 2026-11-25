@@ -1,2 +1,2 @@
-ip,username,password,name,site,protocol,profile,ports,notes
-10.0.0.21,root,,Gate cam 1,Site A,https,,,Leave password blank to be prompted
+ip,username,password,name,customer,protocol,profile,ports,notes,hostname,dns,ntp,timezone,new_username,new_password,new_role,new_username2,new_password2,new_role2
+10.0.0.21,root,,Gate cam 1,Customer A,https,,,Leave password blank to be prompted,gate-cam-1,,,Europe/London,,,,,,

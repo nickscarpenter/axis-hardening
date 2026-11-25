@@ -38,6 +38,8 @@ class AuditSettings:
     min_delay: float = 0.1
     min_axis_os: str = "10.0"
     operator: str = ""
+    customer: str = ""        # free text for the report (GUI step 2 / --customer-name)
+    site_name: str = ""       # free text for the report (GUI step 2 / --site-name)
 
     def live_factory(self) -> ClientFactory:
         def factory(camera: Camera, scheme: str | None = None, **_: Any) -> CameraClient:
@@ -198,7 +200,7 @@ def load_fixture_cameras(path: Path) -> list[tuple[Camera, dict]]:
         c = snap.get("camera") or {}
         cam = Camera(host=c.get("host") or f.stem, port=c.get("port"),
                      credential=Credential(c.get("username", "root"), "simulated-" + secrets.token_hex(8)),
-                     name=c.get("name", ""), site=c.get("site", ""), protocol=c.get("protocol", "https"),
+                     name=c.get("name", ""), customer=c.get("customer", "") or c.get("site", ""), protocol=c.get("protocol", "https"),
                      profile=c.get("profile", ""), ports=c.get("ports") or [], notes=c.get("notes", ""))
         out.append((cam, snap))
     return out
@@ -228,7 +230,8 @@ def base_meta(run_id: str, kind: str, catalog: Catalog, profile: Profile, settin
     return {
         "run_id": run_id, "kind": kind, "started": now_iso(), "tool_version": __version__, "guide": GUIDE_REF,
         "catalog_sha256": catalog.sha256, "profile": profile.name, "control_ids": profile.control_ids,
-        "operator": settings.operator, "insecure_tls": settings.tls.insecure,
+        "operator": settings.operator, "customer": settings.customer, "site_name": settings.site_name,
+        "insecure_tls": settings.tls.insecure,
         "ca_bundle": settings.tls.verify if isinstance(settings.tls.verify, str) else None,
         "simulated": simulated, "min_axis_os": settings.min_axis_os,
         "password_findings": {"shared_groups": passwords.shared_groups, "weak": passwords.weak},
@@ -260,15 +263,28 @@ def finish_meta(meta: dict, results: list[CameraResult], t0: float, run_dir: Pat
     write_private(run_dir / "run.json", json.dumps(meta, indent=1, default=str))
 
 
+def set_baseline(meta: dict, profile: Profile) -> None:
+    """Record the baseline a run is scored against. audit-only (every control) means no baseline."""
+    if profile.name == "audit-only" or not profile.control_ids:
+        meta["baseline"], meta["baseline_ids"] = "", None
+    else:
+        meta["baseline"], meta["baseline_ids"] = profile.name, list(profile.control_ids)
+
+
 def run_audit(cameras: list[Camera], catalog: Catalog, profile: Profile, settings: AuditSettings,
               passwords: PasswordFindings, output_dir: Path, client_factory: ClientFactory | None = None,
               progress: Callable[[CameraResult], None] | None = None,
               simulated: bool = False) -> tuple[str, Path, list[CameraResult]]:
     run_id, run_dir = make_run_dir(output_dir)
     meta = base_meta(run_id, "audit", catalog, profile, settings, passwords, cameras, simulated)
+    # Every control is always read (Fix problems needs them all, e.g. to put settings back to default); the
+    # profile is the baseline the results are scored and reported against.
+    all_ids = [c.id for c in catalog.controls]
+    meta["control_ids"] = all_ids
+    set_baseline(meta, profile)
     t0 = time.monotonic()
     results = run_parallel(cameras, settings.workers,
-                           lambda cam: audit_camera(cam, catalog, profile.control_ids, settings, passwords, run_dir,
+                           lambda cam: audit_camera(cam, catalog, all_ids, settings, passwords, run_dir,
                                                     client_factory),
                            progress)
     finish_meta(meta, results, t0, run_dir)

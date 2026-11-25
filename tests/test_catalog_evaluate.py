@@ -22,6 +22,8 @@ def test_profiles(catalog):
     assert "AX-B-016" not in safe.control_ids and "AX-B-016" in full.control_ids
     assert set(safe.control_ids) < set(full.control_ids) <= set(audit.control_ids)
     assert len(audit.control_ids) == len(catalog.controls)
+    vys = load_profile("vysiion", catalog)
+    assert vys.builtin and set(vys.control_ids) == set(safe.control_ids) | {"AX-B-023", "AX-B-024"}
     assert all(cid.startswith("AX-C-") for cid in safe.control_ids if cid not in full.control_ids) or True
     with pytest.raises(CatalogError):
         load_profile("legacy", catalog)  # dropped
@@ -111,3 +113,27 @@ def test_compliance_pct_ignores_unscored():
           ControlResult("d", INFO)]
     assert compliance_pct(rs) == 50.0
     assert compliance_pct([ControlResult("x", INFO)]) is None
+
+
+def test_custom_profile_save_load_and_list(catalog, tmp_path):
+    from axharden.catalog import list_profiles, save_profile
+    path = save_profile(tmp_path, "Car Park Cams", "no SD", ["AX-B-023", "AX-B-001", "AX-C-001"], catalog, author="T")
+    assert path.name == "car-park-cams.yaml"
+    prof = load_profile("car-park-cams", catalog, extra_dirs=[tmp_path])
+    assert not prof.builtin and prof.path == path
+    applies = [i for i in prof.control_ids if catalog.get(i).kind == "apply"]
+    assert applies == ["AX-B-001", "AX-B-023"]                       # catalog order
+    assert any(catalog.get(i).kind == "check" for i in prof.control_ids)  # checks always included
+    names = [p.name for p in list_profiles(catalog, [tmp_path])]
+    assert names[:5] == ["basic-safe", "basic-full", "vysiion", "factory-defaults", "audit-only"] and "car-park-cams" in names
+    assert load_profile("basic-safe", catalog, extra_dirs=[tmp_path]).builtin
+
+
+def test_custom_profile_cannot_shadow_builtin(catalog, tmp_path):
+    from axharden.catalog import save_profile
+    with pytest.raises(CatalogError):
+        save_profile(tmp_path, "Basic-Safe", "", ["AX-B-001"], catalog)
+    with pytest.raises(CatalogError):
+        save_profile(tmp_path, "!!!", "", ["AX-B-001"], catalog)
+    with pytest.raises(CatalogError):
+        save_profile(tmp_path, "ok", "", ["AX-B-999"], catalog)

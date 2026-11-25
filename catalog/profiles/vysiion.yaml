@@ -1,0 +1,8 @@
+name: vysiion
+description: >
+  Vysiion standard: everything in basic-safe, plus the SD card slot and audio turned off.
+  Use only where cameras do not record to SD and no audio is needed.
+include_checks: true
+controls: [AX-B-001, AX-B-002, AX-B-003, AX-B-004, AX-B-005, AX-B-006, AX-B-008, AX-B-009, AX-B-010,
+           AX-B-011, AX-B-012, AX-B-013, AX-B-014, AX-B-015, AX-B-018, AX-B-019, AX-B-020,
+           AX-B-023, AX-B-024]

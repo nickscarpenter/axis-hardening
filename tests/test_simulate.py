@@ -72,6 +72,8 @@ def test_reports_contain_no_secrets(tmp_path, catalog, m4216):
     export_csv(meta, cams, catalog, tmp_path / "r.csv")
     export_json(meta, cams, tmp_path / "r.json")
     assert "OFFICIAL-SENSITIVE" in html and "Content-Security-Policy" in html
+    tlp = build_html(meta, cams, catalog, tmp_path / "t.html", classification="tlp amber").read_text("utf-8")
+    assert tlp.count("TLP:AMBER") == 2 and "#FFC000" in tlp and "need-to-know" in tlp
     assert "<script" not in html and "http://" not in html.split("</style>")[0]
     for f in [tmp_path / "r.html", tmp_path / "r.csv", tmp_path / "r.json", *run_dir.rglob("*.json")]:
         text = f.read_text(encoding="utf-8")

@@ -35,6 +35,25 @@ class ParamSpec:
     hardened: str
     optional: bool = False
     removed_in: AxisVersion | None = None
+    default: str | None = None                                   # factory default (None = unknown: never reverted)
+    default_from: tuple[tuple[AxisVersion, str], ...] = ()       # (version, value): default changed in that version
+
+
+def default_for(default: str | None, default_from, version: AxisVersion | None) -> str | None:
+    """The factory default for a camera on `version`: the latest default_from step at or below it, else default."""
+    value = default
+    for since, val in sorted(default_from or (), key=lambda x: x[0]):
+        if version is not None and version >= since:
+            value = val
+    return value
+
+
+def _default_steps(raw: Any, where: str) -> tuple[tuple[AxisVersion, str], ...]:
+    if not raw:
+        return ()
+    if not isinstance(raw, dict):
+        raise CatalogError(f"{where}: default_from must be a mapping of version: value")
+    return tuple((_opt_version(k, where), str(val)) for k, val in raw.items())
 
 
 @dataclass(frozen=True)
@@ -60,6 +79,13 @@ class Control:
     opt_in: bool = False
     warning: str | None = None
     verified_on: tuple[str, ...] = ()
+    feature: str = ""                                            # short name, e.g. "Bonjour discovery"
+    followup: str = ""                                           # "decision": INFO result depends on the site
+    expect: str = ""                                             # plain "Should be" for CHECK controls
+    states: dict = field(default_factory=dict, hash=False, compare=False)   # {"hardened": "Off", "unhardened": "On"}
+
+    def state_word(self, which: str) -> str:
+        return str(self.states.get(which) or ("Hardened" if which == "hardened" else "Not hardened"))
 
     @property
     def verified(self) -> bool:
@@ -119,7 +145,9 @@ def _control(raw: dict) -> Control:
             raise CatalogError(f"{cid}: each param needs 'name' and 'hardened'")
         params.append(ParamSpec(name=str(p["name"]), hardened=str(p["hardened"]),
                                 optional=bool(p.get("optional", False)),
-                                removed_in=_opt_version(p.get("removed_in"), cid)))
+                                removed_in=_opt_version(p.get("removed_in"), cid),
+                                default=None if p.get("default") is None else str(p["default"]),
+                                default_from=_default_steps(p.get("default_from"), cid)))
     if raw["method"] == "param" and not params:
         raise CatalogError(f"{cid}: method 'param' needs at least one param")
     if raw["method"] == "handler" and not raw.get("handler"):
@@ -138,6 +166,8 @@ def _control(raw: dict) -> Control:
         missing_status=missing_status,
         disruptive=bool(raw.get("disruptive", False)), requires_reboot=bool(raw.get("requires_reboot", False)),
         opt_in=bool(raw.get("opt_in", False)), warning=raw.get("warning"),
+        feature=str(raw.get("feature") or ""), states=dict(raw.get("states") or {}),
+        followup=str(raw.get("followup") or ""), expect=str(raw.get("expect") or ""),
         verified_on=tuple(raw.get("verified_on") or ()),
     )
 
@@ -161,20 +191,52 @@ class Profile:
     name: str
     description: str
     control_ids: list[str]
+    path: Path | None = None
+    builtin: bool = False
+    revert_others: bool = True     # apply: settings not in the profile go back to the firmware default
 
 
-def load_profile(name_or_path: str, catalog: Catalog, profiles_dir: Path | None = None) -> Profile:
-    profiles_dir = profiles_dir or resource_dir() / "catalog" / "profiles"
+BUILTIN_PROFILES = {
+    "basic-safe": "Axis recommended: basic hardening (safe for normal use)",
+    "basic-full": "Axis recommended: full basic hardening (web interface off, server header hidden)",
+    "vysiion": "Vysiion: basic hardening + SD card slot and audio off",
+    "factory-defaults": "Back to firmware defaults (undo all hardening: LESS SECURE)",
+    "audit-only": "Check only (every control, read only)",
+}
+PROFILE_NAME_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789-_")
+
+
+def builtin_profiles_dir() -> Path:
+    return resource_dir() / "catalog" / "profiles"
+
+
+def user_profiles_dir(output_dir: str | Path) -> Path:
+    """Custom profiles live next to the reports (the program folder may be read-only)."""
+    return Path(output_dir) / "profiles"
+
+
+def load_profile(name_or_path: str, catalog: Catalog, profiles_dir: Path | None = None,
+                 extra_dirs: tuple[Path, ...] | list[Path] = ()) -> Profile:
+    """Load a profile by name (built-in first, then extra_dirs) or by file path."""
+    profiles_dir = profiles_dir or builtin_profiles_dir()
     p = Path(name_or_path)
     if not p.suffix:
-        p = profiles_dir / f"{name_or_path}.yaml"
+        for d in (profiles_dir, *extra_dirs):
+            p = Path(d) / f"{name_or_path}.yaml"
+            if p.exists():
+                break
     if not p.exists():
-        available = ", ".join(sorted(x.stem for x in profiles_dir.glob("*.yaml")))
-        raise CatalogError(f"Profile not found: {name_or_path} (available: {available})")
-    doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        names = {x.stem for d in (profiles_dir, *extra_dirs) for x in Path(d).glob("*.yaml")}
+        raise CatalogError(f"Profile not found: {name_or_path} (available: {', '.join(sorted(names))})")
+    try:
+        doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as e:
+        raise CatalogError(f"{p}: not valid YAML: {e}") from None
+    if not isinstance(doc, dict):
+        raise CatalogError(f"{p}: expected a mapping")
     ids: list[str] = []
     if doc.get("extends"):
-        ids.extend(load_profile(doc["extends"], catalog, profiles_dir).control_ids)
+        ids.extend(load_profile(doc["extends"], catalog, profiles_dir, extra_dirs).control_ids)
     if doc.get("include_all"):
         ids.extend(c.id for c in catalog.controls)
     if doc.get("include_checks"):
@@ -187,4 +249,54 @@ def load_profile(name_or_path: str, catalog: Catalog, profiles_dir: Path | None 
     # keep catalog order, de-duplicate
     wanted = set(ids)
     ordered = [c.id for c in catalog.controls if c.id in wanted]
-    return Profile(name=doc.get("name", p.stem), description=str(doc.get("description", "")).strip(), control_ids=ordered)
+    return Profile(name=str(doc.get("name", p.stem)), description=str(doc.get("description", "")).strip(),
+                   control_ids=ordered, path=p, builtin=p.parent.resolve() == Path(profiles_dir).resolve(),
+                   revert_others=bool(doc.get("revert_others", True)))
+
+
+def list_profiles(catalog: Catalog, extra_dirs: tuple[Path, ...] | list[Path] = ()) -> list[Profile]:
+    """Built-in profiles (recommended order) followed by custom ones; unreadable files are skipped."""
+    out: list[Profile] = []
+    for name in BUILTIN_PROFILES:
+        try:
+            out.append(load_profile(name, catalog))
+        except CatalogError:
+            pass
+    for d in extra_dirs:
+        for f in sorted(Path(d).glob("*.yaml")):
+            if f.stem in BUILTIN_PROFILES:
+                continue
+            try:
+                out.append(load_profile(str(f), catalog))
+            except CatalogError:
+                pass
+    return out
+
+
+def profile_slug(name: str) -> str:
+    slug = "-".join(name.strip().lower().replace("_", "-").split())
+    return "".join(ch for ch in slug if ch in PROFILE_NAME_CHARS).strip("-")
+
+
+def save_profile(folder: str | Path, name: str, description: str, control_ids: list[str], catalog: Catalog,
+                 author: str = "") -> Path:
+    """Write a custom profile as a self-contained YAML file (explicit control list, check controls included)."""
+    slug = profile_slug(name)
+    if not slug:
+        raise CatalogError("Give the profile a name (letters, numbers and dashes).")
+    if slug in BUILTIN_PROFILES:
+        raise CatalogError(f"'{slug}' is a built-in profile and cannot be overwritten. Choose another name.")
+    for cid in control_ids:
+        catalog.get(cid)
+    apply_ids = [c.id for c in catalog.controls if c.id in set(control_ids) and c.kind == "apply"]
+    doc = {"name": slug, "description": description.strip(), "include_checks": True, "controls": apply_ids}
+    if author:
+        doc["created_by"] = author
+    import datetime as _dt
+    doc["saved"] = _dt.datetime.now().isoformat(timespec="seconds")
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{slug}.yaml"
+    header = "# Custom axharden hardening profile (made in the GUI profile editor).\n"
+    path.write_text(header + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, width=100), encoding="utf-8")
+    return path

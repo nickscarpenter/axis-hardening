@@ -18,7 +18,7 @@ $BP -m pip install -q pyinstaller cyclonedx-bom
 
 mkdir -p dist/axharden-src
 $BP -m pip download -q --require-hashes -r requirements.lock -d dist/axharden-src/wheels
-for item in src catalog templates docs README.md SECURITY.md requirements.lock requirements.in pyproject.toml axharden.cmd axharden-gui.cmd axharden.sh; do
+for item in src catalog templates docs README.md SECURITY.md requirements.lock requirements.in pyproject.toml axharden-cli.cmd axharden-gui.cmd axharden-cli.sh axharden-gui.sh; do
   [ -e "$item" ] && cp -r "$item" dist/axharden-src/
 done
 
@@ -30,5 +30,5 @@ for item in templates docs README.md SECURITY.md; do
 done
 
 $BP -m cyclonedx_py requirements requirements.lock --output-format JSON -o dist/sbom.cdx.json
-dist/axharden-linux/axharden --version
+dist/axharden-linux/axharden-cli --version
 echo "Done: dist/"

@@ -23,7 +23,7 @@ A portable, offline tool that lets an engineer on a secure (air-gapped / CNI) ne
 | Constraint | Requirement |
 |---|---|
 | **Offline** | Makes no internet calls at runtime: no telemetry, no update checks, no CDN fonts or assets. The only network traffic is to the camera IPs in the inventory. |
-| **Portable** | Runs from a USB stick or a copied folder with no installer and no admin rights. Ships as either (a) a PyInstaller one-folder build for Windows containing two programs, `AXIS Hardening Check.exe` (GUI) and `axharden.exe` (CLI), built from `packaging/axharden.spec`, or (b) a source folder with `wheels/` installable with `pip install --no-index --find-links wheels`. A build script produces both. |
+| **Portable** | Runs from a USB stick or a copied folder with no installer and no admin rights. Ships as either (a) a PyInstaller one-folder build for Windows containing two programs, `AXIS Hardening Check GUI.exe` (GUI) and `axharden-cli.exe` (CLI), built from `packaging/axharden.spec`, or (b) a source folder with `wheels/` installable with `pip install --no-index --find-links wheels`. A build script produces both. |
 | **Platform** | Windows 10/11 is the primary target; must also run on Linux. Python 3.11+. |
 | **Minimal dependencies** | Only well-known, auditable packages (§3). Pinned with hashes in `requirements.lock`. |
 | **Credentials in memory only** | Credentials are read from the operator's inventory file at the start of each run and held in memory only. The tool never writes them anywhere (no vault, cache, snapshot or output file), never logs them and never shows them in reports. Protecting the inventory file itself is the operator's job (§5.3). |
@@ -64,7 +64,7 @@ axharden/
 │   ├── hardening_controls.yaml    # generated from §6 of this file
 │   └── profiles/                  # audit-only.yaml, basic-safe.yaml, basic-full.yaml
 ├── templates/inventory_template.csv / .xlsx
-├── axharden.cmd / axharden.sh     # launchers for the source-folder deliverable
+├── axharden-cli.cmd / -gui.cmd / -cli.sh / -gui.sh  # launchers for the source-folder deliverable
 ├── packaging/axharden_entry.py    # PyInstaller entry point
 ├── src/axharden/
 │   ├── __main__.py, cli.py        # argparse CLI
@@ -103,11 +103,19 @@ CSV or XLSX, with a header row (header names are case-insensitive).
 | `username` | ✔ | Admin account |
 | `password` | | If blank, the tool prompts for it at run time (hidden input, once per distinct username, reused for every blank row with that username). Lets operators keep a file with no passwords in it. |
 | `name` | | Friendly name / camera ID |
-| `site` | | Groups cameras in the report |
+| `customer` | | Customer the camera belongs to: shown in the report, filters with `--customer` (an old `site` column is read as customer) |
 | `protocol` | | `https` (default) or `http` |
 | `profile` | | Overrides the global profile for this camera |
 | `ports` | | Unused network ports for AX-B-021/022, e.g. `5;6;7` (phase 3). Never guessed. |
 | `notes` | | Free text, shown in the report |
+| `new_username` | | Account to create with `accounts` / GUI "Create accounts..." (§7.7) |
+| `new_role` | | `viewer` (default), `operator`, `admin`, optional `+ptz` |
+| `new_password` | | Password for the new account (≥ 8 chars). Blank = asked at creation time, once per new username |
+| `new_username2` / `new_role2` / `new_password2` | | A second account for the same camera (same rules; names must differ) |
+| `hostname` / `dns` / `ntp` / `timezone` | | Camera settings applied by `apply` / Fix problems whatever the profile (change ids `SET-HOSTNAME`, `SET-DNS`, `SET-NTP`, `SET-TZ`): `Network.HostName` (+ `VolatileHostName.ObtainFromDHCP=no`); DNS via the Network settings API (`network_settings.cgi` `getNetworkInfo` → `system.resolver`, `setResolverConfiguration` with `useDhcpResolverInfo=false`, `staticNameServers`, keeping search domains; max 2 in the list) because **10.12 answers 401 to param.cgi updates of `Network.Resolver.*`** (param fallback only without that API); `Time.ObtainFromDHCP=no`, `SyncSource=NTP`, `NTP.Server` (one server); `Time.POSIXTimeZone` from `timezones.ZONES` (IANA name → POSIX rule; `Time.TimeZone` too if present). **Confirmed live on M4216-LV 10.12.252 (2026-11-25): all four set, read back and rolled back.** Writing `0.0.0.0` to `Time.NTP.Server` is stored as `""`; read-back treats `""`, `0.0.0.0`, `::` as equal. Current values come from AX-C-005 / AX-C-020 `observed` (`raw`, `resolver`). |
+
+The Excel template has header notes, required columns highlighted, and drop-downs (hidden `lists` sheet) for
+protocol, profile, timezone and new_role/new_role2. The reader always uses the first sheet.
 
 ### 5.2 Behaviour
 - Validate every row (bad IP, missing field, duplicate IP) and report all errors before doing anything.
@@ -117,6 +125,8 @@ CSV or XLSX, with a header row (header names are case-insensitive).
 - **Common-password check** (guide p.31, "Common password"): warn if several cameras share the same password, and show that warning in the report. Compare salted hashes in memory only; the report names the cameras, never the password or a hash.
 - Weak-password flag: warn if a password has fewer than 8 characters (guide p.16).
 - Password rotation is **out of scope**: it would mean writing new passwords to disk, which this design avoids.
+  Creating *new* accounts (§7.7) is in scope: the operator supplies the password (inventory cell or typed), and
+  the tool never stores it.
 
 ### 5.3 Credential handling
 - Credentials live only in process memory, in a `Credential` object whose `__repr__`/`__str__` mask the password. They never appear in exceptions, logs, run snapshots, reports or the audit log.
@@ -163,6 +173,7 @@ All cameras in scope run **AXIS OS 10.0 or later**. The catalog, profiles and te
 | NTS | 11.1+ | AX-C-005 |
 | Network port PoE/traffic disable | 11.2+ | AX-B-021, AX-B-022 |
 | OAuth 2.0 / OpenID | 11.6+ | AX-C-015 |
+| Strict security mode (report only, never enabled by the tool) | 12.11+ | AX-C-016 |
 | Host-based firewall | 11.9+ | AX-C-009 |
 | Anonymous basic-device-info switch | 11.11+ | AX-B-025 |
 | UPnP/SSDP off by default; TLS 1.0/1.1 removed; ACAP signing on by default | 12.0+ | AX-B-002, AX-B-010, AX-B-020 |
@@ -240,9 +251,9 @@ Value comparison is **case-insensitive** (`yes`/`Yes`, `on`/`On`). Treat `Activa
 | AX-C-005 | NTP/NTS configured | `root.Time.*` / time API | At least one server configured; ≥ 2 recommended; NTS noted (11.1+) |
 | AX-C-006 | Remote syslog configured | syslog config / `root.RemoteSyslog.*` *(confirm)* | A target is configured. Report TLS on or off. |
 | AX-C-007 | SNMP | `root.SNMP.*` | Off, **or** v3 only. Flag v1 or v2c (p.25). |
-| AX-C-008 | RTSPS / SRTP | `root.Network.RTSPS.Enabled` *(confirm)* | Enabled (only if the VMS supports it, so a "No" here is advisory) |
+| AX-C-008 | RTSPS / SRTP | `root.Network.RTSPS.Enabled` *(confirm)* | Enabled = COMPLIANT, off = NON_COMPLIANT (pass/fail since 2026-11-25; the VMS must support RTSPS) |
 | AX-C-009 | Firewall (11.9+) / IP filter (10.0–11.8) | Pick by version: firewall API on 11.9+, `root.Network.Filter.*` below | Enabled with a default `Drop` policy and rules present. **Never written by this tool** (lock-out risk). |
-| AX-C-010 | IEEE 802.1X | 802.1X config | Report enabled or disabled |
+| AX-C-010 | IEEE 802.1X | 802.1X config | Enabled and port `Authorized` = COMPLIANT; off, or on but not authorised = NON_COMPLIANT |
 | AX-C-011 | Signed video | `root.Image.*.SignedVideo.Enabled` *(confirm)* | Enabled (default from 13.0; on 10.x–12.x expect it off unless set). Model-dependent, so missing = N/A. |
 | AX-C-012 | SD card encryption | Storage API | Encrypted, if an SD card is present |
 | AX-C-013 | Installed ACAPs | `applications/list.cgi` | Report the list. Flag third-party and non-running apps. |
@@ -260,8 +271,18 @@ Value comparison is **case-insensitive** (`yes`/`Yes`, `on`/`On`). Treat `Activa
 | `audit-only` | Every CHECK control and every APPLY control in **read** mode. The default for `audit`. |
 | `basic-safe` | AX-B-001…006, 008…015, 018, 019, 020, plus the CHECKs. Includes the legacy controls (002 NATTraversal, 006, 010, 013); version gating makes them `NOT_SUPPORTED` on firmware where they were removed, so one profile fits all of 10.0+. **Excludes** web-interface disable, server-header hide, port shutdowns, SD/audio disable, and anon device-info. |
 | `basic-full` | Equivalent to Axis's own ADM hardening file (guide p.34): `basic-safe` + AX-B-016 (web UI off) + AX-B-017. |
+| `vysiion` | Vysiion standard: `basic-safe` + AX-B-023 (SD card slot off) + AX-B-024 (audio off). Built-in, read-only. |
+| `factory-defaults` | No apply controls: every setting goes back to its AXIS OS factory default for the camera's version. |
+
+**Profiles are the complete wanted state** (`revert_others: true`, the default; `audit-only` sets it false). On
+apply, APPLY controls not in the profile get a *Back to firmware default* change (`Change.revert`, not disruptive,
+ticked in the GUI). Defaults come from `default` / `default_from` on each param / handler_args in the catalog,
+picked by the device's AXIS OS version (e.g. UPnP `yes`, `no` from 12.0; BoaGroupPolicy `both`, `https` from 13.0;
+password throttling `off`, `on` from 11.5). No default = never reverted (AX-B-011 ciphers, port controls).
+`--controls` never reverts. Default values were taken from the M4216-LV 10.12.252 recording plus the guide's
+version notes; confirm on 11.x/12.x/13.x cameras.
 | ~~`legacy`~~ | Dropped. It existed for AXIS OS < 10, which is out of scope, and `basic-safe` already covers the 10.x–11.x legacy controls. |
-| *custom* | Users can copy a profile and add or remove IDs. Port controls (AX-B-021/022) take a per-camera `ports:` list. |
+| *custom* | Made in the GUI profile editor (Tools > Hardening profiles, or "Edit profiles..." in Fix problems): start from a built-in profile, tick/untick APPLY controls, save under a new name. Saved to `<output>/profiles/<name>.yaml` (explicit `controls:` list + `include_checks: true`); built-in names can't be overwritten. Found by name by the GUI and CLI (`--profile <name>`, `axharden profile list`). Port controls (AX-B-021/022) take a per-camera `ports:` list (phase 3, not selectable yet). |
 
 ---
 
@@ -271,9 +292,10 @@ Value comparison is **case-insensitive** (`yes`/`Yes`, `on`/`On`). Treat `Activa
 axharden inventory template
 axharden inventory check --inventory cameras.xlsx               # validate, mask passwords, no network
 axharden discover  --inventory cameras.xlsx --target 10.0.0.21  # dump the param tree + apidiscovery → verify the catalog
-axharden audit     --inventory cameras.xlsx [--site X] [--profile audit-only]
-axharden plan      --inventory cameras.xlsx --profile basic-safe [--site X]  # dry run
-axharden apply     --inventory cameras.xlsx --profile basic-safe [--site X] [--controls AX-B-001,...] [--yes]
+axharden audit     --inventory cameras.xlsx [--customer X] [--profile audit-only]
+axharden plan      --inventory cameras.xlsx --profile basic-safe [--customer X]  # dry run
+axharden apply     --inventory cameras.xlsx --profile basic-safe [--customer X] [--controls AX-B-001,...] [--yes]
+axharden restart   --inventory cameras.xlsx [--camera ip,ip] [--yes]  # restart.cgi, wait until it answers
 axharden rollback  --inventory cameras.xlsx --run <run-id> [--camera ip]
 axharden report    --run <run-id> [--out report.pdf]            # no credentials needed
 ```
@@ -312,13 +334,36 @@ Reapply the pre-change snapshot for the selected run, camera and controls. Logge
 Against a reference camera: dump `param.cgi?action=list` and `/axis-cgi/apidiscovery.cgi` to JSON, then diff them against the catalog. List the catalog parameters missing on this firmware and the parameter-name case differences (e.g. `PreventDosAttack` vs `PreventDoSAttack`). Offer to mark matched entries `verified: true` for that model and firmware.
 
 ### 7.6 GUI (for non-technical operators)
-`AXIS Hardening Check.exe` (or `axharden gui`). One window, three numbered steps, plain English throughout:
+`AXIS Hardening Check GUI.exe` (or `axharden gui`). One window, three numbered steps, plain English throughout:
 1. **Camera list**: choose the XLSX/CSV, or "Make a blank list". Blank passwords are asked for in a masked dialog, once per username. Validation errors are listed, and shared or weak password warnings are shown.
-2. **Details**: operator name (required, remembered), report marking, site filter, certificate mode (normal / CA file / accept the cameras' own certificates), report folder (default `output/` next to the program).
+2. **Details**: operator name (required, remembered), customer and site name (free text, remembered, shown on the report cover; customer pre-filled when the list has a single `customer` value), **Check against** baseline (Everything / any profile; remembered), report marking, certificate mode (normal / CA file / accept the cameras' own certificates), report folder (default `output/` next to the program).
 3. **Run check**: background thread with a progress bar and a results table (Checked / Not reachable / Wrong password / Certificate problem...). Double-clicking a camera explains the problem and lists failing settings. Then "Open report" / "Open report folder".
 - Tools menu: **Try a demo** (bundled recorded data in `catalog/demo/`, no network) and an Advanced `discover`.
 - Remembers only non-secret choices in `output/gui_settings.json`. Never stores credentials.
-- "Fix problems..." opens a preview with a tick box per change; "Undo last changes" rolls back the last apply run.
+- "Fix problems..." opens a preview with a tick box per change and a profile picker (Axis-recommended + custom); "Undo last changes" rolls back the last apply run.
+- Tools > Hardening profiles: profile editor (built-in profiles read-only; save custom copies).
+
+### 7.7 Separate accounts (`accounts`, GUI "Create accounts...")
+Guide p.16 / AX-C-014: create least-privilege accounts instead of using the admin account everywhere.
+- Up to two accounts per camera (`Camera.new_accounts`) from the `new_*` / `new_*2` inventory columns, or one or
+  two typed accounts (username, privilege level Viewer / Operator / Administrator, optional PTZ, password entered
+  twice) for the ticked/selected cameras (CLI `--user/--role/--ptz`, `--user2/--role2/--ptz2`).
+- `pwdgrp.cgi` `action=add` with `grp=users`, `sgrp=viewer[:operator[:admin]][:ptz]`, sent as a **POST form body**
+  so the password is never in a URL. Confirmed on M4216-LV 10.12.252: create (viewer) + login test + undo all verified.
+  Usernames: letters and digits only (10.12 rejects `_` with "Error: account user name.").
+- Per camera: read accounts → skip if the name exists (never changes existing accounts/passwords) → add →
+  read back the role → one login with the new account (401 = failed, 403 = logged in with limited rights).
+- Refuses reserved names (`root`, ...) and the login account. Audit log records camera, username, role and
+  result, never the password. Run kind `accounts`; `rollback --run <id>` / GUI "Undo last changes" removes only
+  the accounts that run created (`accounts-undo`).
+- **Remove the login account** (`--remove-login`, GUI tick box): only if one new account is an Administrator that was
+  read back as admin and passed the login test (or already existed as admin and its given password logs in). The
+  removal runs logged in as that admin (change kind `account-remove-login`, stores `login_as`, `old_role/old_ptz`).
+  If the camera refuses (root may be undeletable on some AXIS OS), it is reported `failed` and left in place.
+  Undo: log in as the new admin, re-create the old login (same role, password from the inventory), login test,
+  then remove the created accounts as the old login; if the re-create fails, nothing is removed. Passwords for undo
+  come from the inventory (original or updated) or are asked for. The GUI keeps the run's accounts in memory and
+  logs in as the new admin for the rest of the session. *Not yet tried on a real camera.*
 
 ### 7.5 Don't trip the camera's own brute-force protection
 The guide's brute-force settings (p.33) block an IP for 10 s after 20 failed requests within the interval. So:
@@ -332,14 +377,14 @@ The guide's brute-force settings (p.33) block an IP for 10 s after 20 failed req
 
 One self-contained HTML file per run: inline CSS, no scripts, and a Content-Security-Policy that blocks all external loads. Print CSS gives A4 pages (with "page X of Y" where the browser supports `@page` margin boxes); print to PDF from any browser if a PDF is needed. All camera-supplied text is HTML-escaped.
 
-1. **Cover:** title, site(s), date/time, operator name (prompted), run ID, profile, tool version, catalog hash, and the reference *"AXIS OS Hardening guide T10177717 (2026-07)"*
+1. **Cover:** title, customer(s), date/time, operator name (prompted), run ID, profile, tool version, catalog hash, and the reference *"AXIS OS Hardening guide T10177717 (2026-07)"*
 2. **Executive summary:** cameras in scope / reachable / failed; compliance % before → after; changes applied / failed / skipped; common-password warning
 3. **Compliance matrix:** cameras × controls, grouped by guide level (Default / Basic / Extended / Legacy). Cells use symbols ✔ ✘ — (N/A or not supported) ! (error) as well as colour, so the matrix reads in mono print.
 4. **Per-camera pages:** device info (model, serial, MAC, AXIS OS, IP, certificate issuer), then a table with control ID, title, guide page, CSC #, before, action, after and result
 5. **Exceptions & warnings:** unreachable cameras, errors, controls not supported, `--insecure` use, items left for manual or extended work (firewall, PKI, 802.1X, syslog)
 6. **Appendix:** control catalog (ID, title, guide section and page, CSC, hardened value) and the audit-log extract for the run
 
-No passwords appear anywhere. The report shows the run ID in its footer and a configurable classification marking (`--classification`, e.g. "OFFICIAL-SENSITIVE") at top and bottom. The same data is also exported as CSV and JSON.
+No passwords appear anywhere. The report shows the run ID in its footer and a configurable classification marking (`--classification`) at top and bottom: TLP 2.0 labels (`TLP:CLEAR/GREEN/AMBER/AMBER+STRICT/RED`) are shown in their TLP colours on black with a one-line meaning; any other text is shown as-is. The GUI offers the TLP labels. The same data is also exported as CSV and JSON.
 
 ---
 
@@ -368,7 +413,9 @@ No passwords appear anywhere. The report shows the run ID in its footer and a co
 1. **Phase 1 – Read-only:** inventory loading, VAPIX client, discover, audit, HTML/CSV/JSON report. *Built 2026-11-24; tested live on M4216-LV 10.12.252.*
 2. **Phase 2 – Apply:** plan, dry-run, apply with verification, audit log, rollback. Profiles `basic-safe` → `basic-full`. *Built 2026-11-24 (CLI + GUI "Fix problems..." / "Undo last changes"); tested on simulated cameras. Real-camera apply + rollback verified on M4216-LV 10.12.252 (AX-B-001, -012, -014).*
    - `vapix/sim.py`: a stateful simulated camera (SimDevice/SimClient) used by `--simulate`, the GUI demo and the tests. Audit and apply use the same code path via a `client_factory`.
-   - In the GUI, disruptive changes (AX-B-009, AX-B-016) start unticked and need an extra confirmation. A plan older than 30 minutes asks for a re-check first.
+   - In the GUI, disruptive changes (AX-B-016 web-UI disable) start unticked and need an extra confirmation.
+     AX-B-009 HTTPS-only is exempt (`NO_EXTRA_CONFIRM`): it is ticked like other changes, with a note and a line in
+     the final confirmation, because apply checks HTTPS works first and reconnects over HTTPS. A plan older than 30 minutes asks for a re-check first.
    - `apply` refuses the `audit-only` profile (it contains opt-in controls) unless `--controls` is given.
    - Values are written in the device's own case style (`Yes` -> `No`, `Off` -> `On`).
 3. **Phase 3 – Extras:** port controls (AX-B-021/022), drift report comparing two runs.
@@ -381,9 +428,20 @@ No passwords appear anywhere. The report shows the run ID in its footer and a co
 - [x] AXIS OS versions in scope: **10.0 and later** (§6.0)
 - [ ] Camera models in scope (PTZ? multi-port S3008? SD/audio use?)
 - [x] Reference camera: AXIS M4216-LV, AXIS OS 10.12.252. Still need 11.x and 12.x reference cameras.
-- [ ] Remote syslog, firewall (11.9+), OpenID and strict-security-mode read APIs: currently INFO / manual. Confirm the API endpoints on an 11.x/12.x camera.
+- [x] Remote syslog: `POST /axis-cgi/remotesyslog.cgi` method `status` → `data.enabled`, `data.servers` (confirmed M4216-LV 10.12.252). SD encryption: `GET /axis-cgi/disks/list.cgi?diskid=all` → `SD_DISK` `status`, `diskencrypted` (confirmed 10.12.252; empty slot = N/A). AX-C-004: Axis 802.1AR or CA certificate = COMPLIANT, self-signed = NON_COMPLIANT.
+- [ ] Firewall (11.9+), OpenID and strict-security-mode read APIs: still manual. Confirm on an 11.x/12.x camera.
+- Report "Follow-up" groups INFO results: *Needs a manual check* (handler `manual` or detail says manual), *Your decision* (`followup: decision` in the catalog), *For information* (everything else), each with the per-camera finding.
 - [ ] Are cameras already on HTTPS? Self-signed, 802.1AR or CA-issued certificates?
 - [ ] Target OS on the secure system; Python allowed, or frozen .exe only?
 - [ ] VMS in use (affects WS-Discovery, RTSPS and web-UI disable decisions)
 - [ ] Report classification marking text and branding
 - [x] Password rotation: out of scope (credentials are never written to disk, §5.3)
+- [x] `pwdgrp.cgi` add/remove as a POST form body: confirmed on M4216-LV 10.12.252 (2026-11-24). Still to confirm on 11.x/12.x/13.x.
+
+### Baselines (check against a profile)
+`run_audit` always reads **every** control (so Fix problems can still revert settings outside a profile) and records
+`meta.baseline` / `meta.baseline_ids` from the profile it is given (`audit-only` = no baseline). Scoring and display
+go through `evaluate.baseline_view`: controls outside the baseline become N/A "Not part of the <name> baseline" (report
+cover "Checked against", overview matrix limited to the baseline, GUI score/problems, CLI per-camera line). Apply runs
+record the applied profile as their baseline. GUI: step 2 "Check against" (factory-defaults is not offered), and
+Fix problems opens on the same profile. CLI: `audit/plan/apply --profile X`.

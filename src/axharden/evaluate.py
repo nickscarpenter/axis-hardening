@@ -96,7 +96,7 @@ def evaluate_params(ctl: Control, params: ParamTree, ver: AxisVersion | None) ->
             if ctl.compare == "subset":
                 ok, extra = _subset(value, spec.hardened)
                 if not ok:
-                    failures.append(f"{actual} has non-approved items: {', '.join(extra) or '(empty)'}")
+                    failures.append(f"Also allows older ciphers: {', '.join(extra)}" if extra else "Cipher list is empty")
             elif not _eq(value, spec.hardened):
                 failures.append(f"{actual}={value!r} (want {spec.hardened})")
     if evaluated == 0:
@@ -131,6 +131,17 @@ def evaluate(ctl: Control, ctx: AuditContext) -> ControlResult:
         if isinstance(e, CameraError) and e.code == "AUTH_FAILED":
             raise
         return ControlResult(ctl.id, ERROR, detail=f"{type(e).__name__}: {e}")
+
+
+def baseline_view(results: list[ControlResult], baseline_ids: list[str] | None,
+                  baseline_name: str = "") -> list[ControlResult]:
+    """Results as seen against a baseline (profile): controls outside it become N/A ("not in this baseline"), so
+    they are not scored or listed as problems. The raw results are kept elsewhere for planning (reverts)."""
+    if not baseline_ids:
+        return results
+    wanted = set(baseline_ids)
+    label = f"Not part of the {baseline_name} baseline." if baseline_name else "Not part of the chosen baseline."
+    return [r if r.id in wanted else ControlResult(r.id, NA, r.observed, label) for r in results]
 
 
 def compliance_pct(results: list[ControlResult]) -> float | None:

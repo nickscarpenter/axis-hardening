@@ -24,8 +24,9 @@ from typing import Any, Callable
 from .audit import (AuditSettings, CameraResult, ClientFactory, base_meta, finish_meta, load_run, make_run_dir,
                     now_iso, read_camera, run_parallel, safe_name, write_private)
 from .auditlog import AuditLog
-from .catalog import Catalog, Control, Profile
-from .evaluate import COMPLIANT, NON_COMPLIANT, ControlResult
+from .catalog import Catalog, Control, Profile, default_for
+from .evaluate import COMPLIANT, ERROR, NA, NON_COMPLIANT, NOT_SUPPORTED, ControlResult
+from .version import AxisVersion, v as parse_version
 from .inventory import Camera, PasswordFindings
 from .vapix import params as vparams
 from .vapix.client import CameraError
@@ -37,6 +38,7 @@ SPECIAL_GROUP = {"AX-B-011": G_CIPHERS, "AX-B-009": G_HTTPS_ONLY, "AX-B-016": G_
 GROUP_NAME = {G_PARAMS: "settings", G_HANDLERS: "ACAP/REST settings", G_CIPHERS: "TLS ciphers",
               G_HTTPS_ONLY: "HTTPS only", G_WEBUI: "web interface"}
 ANON_PATH = "/config/rest/basic-device-info/v2beta/allowAnonymous"
+NETSET_PATH = "/axis-cgi/network_settings.cgi"
 
 
 @dataclass
@@ -59,6 +61,9 @@ class Change:
     warning: str = ""
     status: str = "planned"        # planned | applied | verified | failed | skipped | not_needed
     detail: str = ""
+    revert: bool = False           # True: puts a setting back to its firmware default (not in the profile)
+    now_label: str = ""            # plain words for people, e.g. "Enabled" -> "Disabled" (raw values stay in writes)
+    new_label: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -68,7 +73,8 @@ class Change:
     def from_dict(cls, d: dict) -> "Change":
         d = dict(d)
         d["writes"] = [Write(**w) for w in d.get("writes") or []]
-        return cls(**d)
+        known = cls.__dataclass_fields__
+        return cls(**{k: val for k, val in d.items() if k in known})
 
 
 @dataclass
@@ -90,6 +96,14 @@ def _match_case(current: str | None, new: str) -> str:
 
 def _eq(a: str | None, b: str) -> bool:
     return a is not None and a.strip().lower() == b.strip().lower()
+
+
+EMPTY_ADDRESSES = {"", "0.0.0.0", "::"}   # "no server": AXIS OS 10.12 stores 0.0.0.0 written to NTP.Server as ""
+
+
+def _same(a: str | None, b: str) -> bool:
+    """Read-back comparison: case-insensitive, and the 'no address' spellings count as equal."""
+    return _eq(a, b) or (a is not None and a.strip() in EMPTY_ADDRESSES and b.strip() in EMPTY_ADDRESSES)
 
 
 def changes_for(ctl: Control, result: ControlResult, host: str) -> tuple[list[Change], str | None]:
@@ -134,7 +148,171 @@ def changes_for(ctl: Control, result: ControlResult, host: str) -> tuple[list[Ch
         return [], "Nothing to write."
     group = SPECIAL_GROUP.get(ctl.id, G_HANDLERS if kind != "param" else G_PARAMS)
     return [Change(camera=host, control_id=ctl.id, title=ctl.title, group=group, kind=kind, writes=writes,
-                   disruptive=ctl.disruptive, requires_reboot=ctl.requires_reboot, warning=ctl.warning or "")], None
+                   disruptive=ctl.disruptive, requires_reboot=ctl.requires_reboot, warning=ctl.warning or "",
+                   now_label=ctl.state_word("unhardened"), new_label=ctl.state_word("hardened"))], None
+
+
+def _hardened_value(ctl: Control, w: Write) -> bool:
+    """Is the value being replaced the hardened one? (Used to describe a revert in plain words.)"""
+    old = "" if w.old is None else str(w.old)
+    if ctl.method == "param":
+        for spec in ctl.params:
+            pattern = vparams.normalise(spec.name).lower()
+            if fnmatch.fnmatchcase(w.name.lower(), pattern) if "*" in spec.name else w.name.lower() == pattern:
+                if ctl.compare == "subset":
+                    allowed = {x.upper() for x in spec.hardened.split(":")}
+                    return bool(old) and all(x.upper() in allowed for x in old.split(":") if x)
+                return _eq(old, spec.hardened)
+        return False
+    if ctl.handler == "anon_device_info":
+        return old.lower() == "false"
+    return _eq(old, str(ctl.handler_args.get("hardened", "")))
+
+
+REVERT_PREFIX = "back to factory default"
+
+
+def _device_version(result: CameraResult) -> AxisVersion | None:
+    try:
+        return parse_version(str(result.device.get("Version") or ""))
+    except ValueError:
+        return None
+
+
+def default_changes_for(ctl: Control, result: ControlResult, host: str,
+                        version: AxisVersion | None) -> tuple[list[Change], str | None]:
+    """Changes that put one control back to its factory default for this AXIS OS version."""
+    if ctl.kind != "apply" or result.status in (NOT_SUPPORTED, NA, ERROR):
+        return [], None
+    writes: list[Write] = []
+    kind = "param"
+    obs = result.observed
+    if ctl.method == "param":
+        for spec in ctl.params:
+            want = default_for(spec.default, spec.default_from, version)
+            if want is None:
+                continue
+            pattern = vparams.normalise(spec.name).lower()
+            for actual, val in obs.items():
+                hit = fnmatch.fnmatchcase(actual.lower(), pattern) if "*" in spec.name else actual.lower() == pattern
+                if hit and val is not None and not _eq(val, want):
+                    writes.append(Write(actual, val, _match_case(val, want)))
+    else:
+        want = default_for(None if ctl.handler_args.get("default") is None else str(ctl.handler_args["default"]),
+                           tuple((parse_version(str(k)), str(x)) for k, x in
+                                 (ctl.handler_args.get("default_from") or {}).items()), version)
+        if want is None:
+            return [], None
+        if ctl.handler == "applications_config":
+            kind, name = "app_config", ctl.handler_args["name"]
+            if obs.get(name) is not None and not _eq(str(obs.get(name)), want):
+                writes.append(Write(f"app:{name}", obs.get(name), want))
+        elif ctl.handler == "sd_disk":
+            writes += [Write(k, val, _match_case(val, want)) for k, val in obs.items()
+                       if val is not None and not _eq(val, want)]
+        elif ctl.handler == "anon_device_info":
+            kind = "rest_anon"
+            cur = obs.get("allowAnonymous")
+            if cur is not None and str(cur).lower() != want.lower():
+                writes.append(Write("rest:allowAnonymous", str(cur), want))
+    if not writes:
+        return [], None
+    group = SPECIAL_GROUP.get(ctl.id, G_HANDLERS if kind != "param" else G_PARAMS)
+    now = ctl.state_word("hardened") if all(_hardened_value(ctl, w) for w in writes) else "Custom setting"
+    return [Change(camera=host, control_id=ctl.id, title=f"{ctl.feature or ctl.title}: {REVERT_PREFIX}",
+                   group=group, kind=kind, writes=writes, disruptive=False, requires_reboot=ctl.requires_reboot,
+                   warning="Not in this profile: goes back to the AXIS OS factory default (less secure).",
+                   revert=True, now_label=now, new_label=f"{ctl.state_word('unhardened')} (factory)")], None
+
+
+# ---------------------------------------------------------------- camera settings from the camera list
+# hostname / dns / ntp / timezone columns: site-specific values the operator chose, set whatever the profile.
+SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ = "SET-HOSTNAME", "SET-DNS", "SET-NTP", "SET-TZ"
+SETTING_IDS = (SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ)
+
+
+def _observed(before: CameraResult, control_id: str) -> dict:
+    r = next((x for x in before.results if x.id == control_id), None)
+    return dict(r.observed or {}) if r else {}
+
+
+def _raw_values(before: CameraResult, control_id: str) -> dict[str, str]:
+    r = next((x for x in before.results if x.id == control_id), None)
+    return dict((r.observed or {}).get("raw") or {}) if r else {}
+
+
+def _setting(host: str, cid: str, title: str, raw: dict[str, str], wanted: dict[str, str], now: str, new: str,
+             required: str) -> tuple[list[Change], list[tuple[str, str]]]:
+    low = {k.lower(): k for k in raw}
+    if required.lower() not in low:
+        return [], [(cid, f"{title}: this camera has no {required.replace('root.', '')} parameter.")]
+    writes = []
+    for name, value in wanted.items():
+        actual = low.get(name.lower())
+        if actual is not None and not _same(raw[actual], value):
+            keep = _match_case(raw[actual], value) if value.lower() in ("yes", "no", "on", "off") else value
+            writes.append(Write(actual, raw[actual], keep))
+    if not writes:
+        return [], []
+    return [Change(camera=host, control_id=cid, title=title, group=G_PARAMS, kind="param", writes=writes,
+                   now_label=now, new_label=new)], []
+
+
+def setting_changes(cam: Camera, before: CameraResult) -> tuple[list[Change], list[tuple[str, str]]]:
+    """Changes that set the host name, DNS servers, NTP server and time zone from the camera list."""
+    from .timezones import name_for, resolve
+    changes: list[Change] = []
+    notes: list[tuple[str, str]] = []
+
+    def add(result):
+        changes.extend(result[0])
+        notes.extend(result[1])
+
+    nd = _raw_values(before, "AX-C-020")
+    tm = _raw_values(before, "AX-C-005")
+    get = lambda raw, n: next((v for k, v in raw.items() if k.lower() == n.lower()), "")   # noqa: E731
+    if cam.hostname:
+        add(_setting(cam.host, SET_HOSTNAME, "Set host name", nd,
+                     {"root.Network.HostName": cam.hostname, "root.Network.VolatileHostName.ObtainFromDHCP": "no"},
+                     get(nd, "root.Network.HostName") or "(not set)", cam.hostname, "root.Network.HostName"))
+    nd_obs = _observed(before, "AX-C-020")
+    if cam.dns and nd_obs.get("resolver") is not None:
+        # Network settings API (AXIS OS 10.12 refuses DNS writes via param.cgi with 401)
+        cur = dict(nd_obs["resolver"])
+        new = dict(cur, useDhcpResolverInfo=False, staticNameServers=list(cam.dns))
+        old_set = {k: cur.get(k) for k in ("useDhcpResolverInfo", "staticNameServers")}
+        if old_set != {"useDhcpResolverInfo": False, "staticNameServers": list(cam.dns)}:
+            now = ("From DHCP" if cur.get("useDhcpResolverInfo")
+                   else ", ".join(nd_obs.get("dns_servers") or cur.get("staticNameServers") or []) or "None")
+            changes.append(Change(camera=cam.host, control_id=SET_DNS, title="Set DNS servers", group=G_HANDLERS,
+                                  kind="net_resolver",
+                                  writes=[Write(f"network:resolver@{nd_obs.get('netset_version') or '1.0'}",
+                                                json.dumps(cur, sort_keys=True), json.dumps(new, sort_keys=True))],
+                                  now_label=now, new_label=", ".join(cam.dns)))
+    elif cam.dns:
+        servers = (cam.dns + [""])[:2]
+        cur = [get(nd, f"root.Network.Resolver.NameServer{i}") for i in (1, 2)]
+        now = ("From DHCP" if get(nd, "root.Network.Resolver.ObtainFromDHCP").lower() == "yes"
+               else ", ".join(x for x in cur if x and x != "0.0.0.0") or "None")
+        add(_setting(cam.host, SET_DNS, "Set DNS servers", nd,
+                     {"root.Network.Resolver.ObtainFromDHCP": "no", "root.Network.Resolver.NameServer1": servers[0],
+                      "root.Network.Resolver.NameServer2": servers[1]},
+                     now, ", ".join(cam.dns), "root.Network.Resolver.NameServer1"))
+    if cam.ntp:
+        cur = get(tm, "root.Time.NTP.Server")
+        now = ("From DHCP" if get(tm, "root.Time.ObtainFromDHCP").lower() == "yes"
+               else (cur if cur and cur != "0.0.0.0" else "None"))
+        add(_setting(cam.host, SET_NTP, "Set time server (NTP)", tm,
+                     {"root.Time.ObtainFromDHCP": "no", "root.Time.SyncSource": "NTP", "root.Time.NTP.Server": cam.ntp},
+                     now, cam.ntp, "root.Time.NTP.Server"))
+    if cam.timezone:
+        iana, posix = resolve(cam.timezone)
+        wanted = {"root.Time.POSIXTimeZone": posix}
+        if iana and get(tm, "root.Time.TimeZone"):
+            wanted["root.Time.TimeZone"] = iana
+        add(_setting(cam.host, SET_TZ, "Set time zone", tm, wanted, name_for(get(tm, "root.Time.POSIXTimeZone")),
+                     iana or posix, "root.Time.POSIXTimeZone"))
+    return changes, notes
 
 
 def make_plan(audits: list[CameraResult], cameras: list[Camera], catalog: Catalog, profile: Profile,
@@ -155,13 +333,24 @@ def make_plan(audits: list[CameraResult], cameras: list[Camera], catalog: Catalo
         if controls:
             ids = controls
         wanted = set(ids)
+        # A profile is the complete wanted state: settings it leaves out go back to the firmware default.
+        # Not when only some controls were asked for (--controls), or for read-only profiles.
+        revert_others = not controls and profile.revert_others
+        version = _device_version(before)
         for r in before.results:
             if r.id not in wanted:
+                if revert_others:
+                    chs, _ = default_changes_for(catalog.get(r.id), r, cam.host, version)
+                    plan.changes.extend(chs)
                 continue
             chs, reason = changes_for(catalog.get(r.id), r, cam.host)
             plan.changes.extend(chs)
             if reason:
                 plan.skipped.append((r.id, reason))
+        if not controls or any(c in SETTING_IDS for c in controls):
+            chs, notes = setting_changes(cam, before)
+            plan.changes.extend(c for c in chs if not controls or c.control_id in controls)
+            plan.skipped.extend(notes)
         plan.changes.sort(key=lambda c: (c.group, c.control_id))
     return plans
 
@@ -174,7 +363,7 @@ def plan_rows(plans: list[CameraPlan]) -> list[dict]:
                 rows.append({"camera": p.camera.label, "host": p.camera.host, "control": ch.control_id,
                              "title": ch.title, "setting": w.name.replace("root.", ""), "current": w.old,
                              "new": w.new, "disruptive": ch.disruptive, "reboot": ch.requires_reboot,
-                             "warning": ch.warning})
+                             "warning": ch.warning, "revert": ch.revert})
     return rows
 
 
@@ -227,6 +416,20 @@ class Executor:
                                 params={"action": "set", "name": name, "value": w.new}, ok_statuses=(200, 400, 404))
             if r.status_code != 200 or 'result="ok"' not in r.text.lower().replace("'", '"'):
                 return f"HTTP {r.status_code}: {r.text.strip()[:120]}"
+            return None
+        if ch.kind == "net_resolver":
+            ver = w.name.split("@", 1)[1] if "@" in w.name else "1.0"
+            want = json.loads(w.new)
+            params = {k: want[k] for k in ("useDhcpResolverInfo", "staticNameServers", "staticSearchDomains",
+                                           "staticDomainName") if k in want and want[k] is not None}
+            r = self.client.post_json(NETSET_PATH, {"apiVersion": ver, "method": "setResolverConfiguration",
+                                                    "params": params}, ok_statuses=(200, 400, 404, 500))
+            try:
+                err = r.json().get("error") if r.status_code == 200 else None
+            except ValueError:
+                err = None
+            if r.status_code != 200 or err:
+                return f"HTTP {r.status_code}: {err or r.text.strip()[:160]}"
             return None
         if ch.kind == "rest_anon":
             value = str(w.new).strip().lower() == "true"
@@ -327,8 +530,15 @@ def verify_changes(changes: list[Change], tree: vparams.ParamTree, after: list[C
         if ch.kind == "param":
             for w in ch.writes:
                 now = tree.get(w.name)
-                if not _eq(now, w.new):
+                if not _same(now, w.new):
                     problems.append(f"{w.name} reads back as {now!r}, expected {w.new!r}")
+        elif ch.kind == "net_resolver":
+            r = after_by_id.get("AX-C-020")
+            got = ((r.observed or {}).get("resolver") or {}) if r else {}
+            want = json.loads(ch.writes[0].new)
+            for k in ("useDhcpResolverInfo", "staticNameServers"):
+                if got.get(k) != want.get(k):
+                    problems.append(f"DNS {k} reads back as {got.get(k)!r}, expected {want.get(k)!r}")
         else:
             r = after_by_id.get(ch.control_id)
             want_compliant = all(str(w.new).lower() in ("false", "no") for w in ch.writes)
@@ -395,6 +605,8 @@ def run_apply(plans: list[CameraPlan], catalog: Catalog, profile: Profile, setti
     run_id, run_dir = make_run_dir(output_dir)
     cams = [p.camera for p in plans]
     meta = base_meta(run_id, "apply", catalog, profile, settings, passwords, cams, simulated)
+    from .audit import set_baseline
+    set_baseline(meta, profile)
     meta.update(audit_run=audit_run, confirmed_by=confirmed_by,
                 planned_changes=sum(len(p.changes) for p in plans))
     alog = AuditLog(output_dir / "audit_log.jsonl", operator=settings.operator)
@@ -449,6 +661,7 @@ def build_rollback(run_dir: Path, cameras: list[Camera], only_host: str | None =
             if any(w.old is None for w in ch.writes):
                 continue
             ch.writes = [Write(w.name, w.new, w.old) for w in ch.writes]
+            ch.now_label, ch.new_label = ch.new_label, ch.now_label
             ch.status, ch.detail = "planned", ""
             ch.title = f"Undo: {ch.title}"
             undo.append(ch)

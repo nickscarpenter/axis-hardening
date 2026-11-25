@@ -20,11 +20,11 @@ def export_json(meta: dict, cams: list[CameraResult], out: Path) -> Path:
 def export_csv(meta: dict, cams: list[CameraResult], catalog: Catalog, out: Path) -> Path:
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["run_id", "site", "camera", "host", "model", "serial", "axis_os", "camera_status",
+    w.writerow(["run_id", "customer", "camera", "host", "model", "serial", "axis_os", "camera_status",
                 "control_id", "title", "level", "guide_page", "csc", "status_before", "status", "observed", "detail",
                 "change"])
     for cam in cams:
-        base = [meta["run_id"], cam.camera.get("site", ""), cam.camera.get("name", ""), cam.camera["host"],
+        base = [meta["run_id"], cam.camera.get("customer", "") or cam.camera.get("site", ""), cam.camera.get("name", ""), cam.camera["host"],
                 cam.device.get("ProdNbr", ""), cam.device.get("SerialNumber", ""), cam.device.get("Version", ""),
                 cam.status]
         if not cam.results:
