@@ -70,6 +70,10 @@ def applications_config(ctl: Control, ctx: AuditContext) -> ControlResult:
     if status in (404, 501):
         return ControlResult(ctl.id, NOT_SUPPORTED, {name: None},
                              "applications/config.cgi not available on this firmware.")
+    if status == 400 and "valid name" in (res.get("text") or "").lower():
+        # AXIS OS 12.11 (M4216-LV): "Malformed request: valid name required" = this setting no longer exists
+        return ControlResult(ctl.id, NOT_SUPPORTED, {name: None},
+                             f"The {name} setting no longer exists on this AXIS OS version; compliant by design.")
     if status != 200:
         return ControlResult(ctl.id, ERROR, {name: None}, f"HTTP {status}: {res.get('error', '')}".strip(": "))
     text = res["text"]
@@ -363,12 +367,39 @@ def rtsps(ctl: Control, ctx: AuditContext) -> ControlResult:
                          "(p.25).")
 
 
+FIREWALL_PATH = "/config/rest/firewall/v1"
+
+
+def firewall_state(ctx: AuditContext) -> dict | None:
+    """{activated, defaultPolicy, rules} from the Device Configuration firewall API (11.9+), None if not available."""
+    import json
+    res = http_get(ctx, FIREWALL_PATH)
+    if res.get("status") != 200:
+        return None
+    try:
+        data = json.loads(res["text"]).get("data") or {}
+    except ValueError:
+        return None
+    rules = ((data.get("conf") or {}).get("rules") or {})
+    return {"activated": bool(data.get("activated")), "defaultPolicy": rules.get("activeDefaultPolicy") or "ACCEPT",
+            "rules": list(rules.get("activeRules") or [])}
+
+
 @handler("network_filter")
 def network_filter(ctl: Control, ctx: AuditContext) -> ControlResult:
     ver = ctx.version
     if ver is not None and ver >= v("11.9"):
-        return ControlResult(ctl.id, INFO, {}, "AXIS OS 11.9+: check the host firewall manually (System > Security > "
-                             "Firewall): default policy Drop with VMS and admin clients allowed. Never changed by this tool.")
+        fw = firewall_state(ctx)
+        if fw is None:
+            return ControlResult(ctl.id, INFO, {}, "AXIS OS 11.9+: check the host firewall manually (System > Security > "
+                                 "Firewall): default policy Drop with VMS and admin clients allowed.")
+        if not fw["activated"]:
+            return ControlResult(ctl.id, NON_COMPLIANT, fw, "The firewall is disabled: every device on the network can "
+                                 "reach the camera. Set it with the camera list's allow column (p.22).")
+        if fw["defaultPolicy"] != "DROP" or not fw["rules"]:
+            return ControlResult(ctl.id, NON_COMPLIANT, fw, f"The firewall is enabled but lets everything through "
+                                 f"(default {fw['defaultPolicy']}, {len(fw['rules'])} rule(s)).")
+        return ControlResult(ctl.id, COMPLIANT, fw, f"Enabled: everything is blocked except {len(fw['rules'])} rule(s).")
     p = ctx.params
     observed = {"Enabled": p.get("root.Network.Filter.Enabled"), "Policy": p.get("root.Network.Filter.Input.Policy"),
                 "AcceptAddresses": p.get("root.Network.Filter.Input.AcceptAddresses")}
@@ -385,6 +416,7 @@ def network_filter(ctl: Control, ctx: AuditContext) -> ControlResult:
 def dot1x(ctl: Control, ctx: AuditContext) -> ControlResult:
     found = {k: val for k, val in ctx.params.match("root.Network.*dot1x*.Enabled")}
     found.update({k: val for k, val in ctx.params.match("root.Network.*IEEE8021X*.Enabled")})
+    found.update({k: val for k, val in ctx.params.match("root.Network.*dot1x.EAPTLS.Identity")})
     if not found:
         return ControlResult(ctl.id, INFO, {}, "802.1X settings not in the parameter tree; check System > Security > IEEE 802.1X.")
     on = any(val.lower() == "yes" for val in found.values())
@@ -481,6 +513,29 @@ def users(ctl: Control, ctx: AuditContext) -> ControlResult:
         return ControlResult(ctl.id, NON_COMPLIANT, observed,
                              f"Only administrator accounts: {summary}. Create a limited operator/viewer account for daily use (p.16).")
     return ControlResult(ctl.id, COMPLIANT, observed, f"Accounts: {summary}.")
+
+
+@handler("rest_property")
+def rest_property(ctl: Control, ctx: AuditContext) -> ControlResult:
+    """One boolean/string property of a Device Configuration REST API (AXIS OS 11.x/12.x), e.g. lldp.v1 activated.
+    GET <path> -> {"status": "success", "data": {<property>: value, ...}}; 404 = API not on this firmware."""
+    import json
+    path, prop = ctl.handler_args["path"], ctl.handler_args["property"]
+    want = ctl.handler_args.get("hardened")
+    res = http_get(ctx, path)
+    if res.get("status") in (404, 501) or res.get("status") is None:
+        return ControlResult(ctl.id, NOT_SUPPORTED, {}, "This setting's API is not available on this firmware.")
+    if res.get("status") != 200:
+        return ControlResult(ctl.id, ERROR, {}, f"HTTP {res.get('status')}")
+    try:
+        data = json.loads(res["text"]).get("data") or {}
+    except ValueError:
+        return ControlResult(ctl.id, ERROR, {}, "Unparseable JSON reply")
+    if prop not in data:
+        return ControlResult(ctl.id, NOT_SUPPORTED, {}, f"'{prop}' is not available on this firmware.")
+    value = data[prop]
+    ok = value == want
+    return ControlResult(ctl.id, COMPLIANT if ok else NON_COMPLIANT, {prop: value}, "")
 
 
 @handler("lldp")

@@ -445,3 +445,37 @@ go through `evaluate.baseline_view`: controls outside the baseline become N/A "N
 cover "Checked against", overview matrix limited to the baseline, GUI score/problems, CLI per-camera line). Apply runs
 record the applied profile as their baseline. GUI: step 2 "Check against" (factory-defaults is not offered), and
 Fix problems opens on the same profile. CLI: `audit/plan/apply --profile X`.
+
+### AXIS OS 12.11 reference camera and extra settings (2026-11-26)
+- The M4216-LV was upgraded to **AXIS OS 12.11.77**; anonymised fixture `tests/fixtures/m4216lv_12.11.77.json`
+  (fixture `m4216_12`, `tests/test_firmware12.py`). On 12.11 `applications/config.cgi?name=AllowRoot` answers
+  `400 Malformed request: valid name required` → AX-B-019 NOT_SUPPORTED (setting removed).
+- 12.11 serves the **Device Configuration API**: `GET /config/discover` lists the REST APIs, each with its own docs
+  (`/config/discover/apis/<api>/v1/doc.md`). Present: `firewall` (setRules with `fallbackTime` auto-revert,
+  `confirmRules`, `activated`), `lldp` (`activated`), `oidcsetup`, `cert`, `cert-est`, `snmp`, `log`, `ssh`,
+  `network-settings`, `time`, `user-management`. **Strict security mode is not listed.** Remote syslog 1.2 also shows as
+  `root.API.RemoteSyslog1.*` params.
+- **AX-E-* controls** (opt-in APPLY fixes for CHECK findings; in no built-in profile; no `default`, so never reverted):
+  AX-E-001 RTSPS on, AX-E-002 signed video on, AX-E-003 SNMP v1/v2c off, AX-E-004 filter logging (< 12.0),
+  AX-E-005 LLDP off via handler `rest_property` (`GET <path>`, `PATCH <path>/<property> {"data": v}`, change kind
+  `rest_prop`). Simulated in `sim.py` (`_rest`, backed by recorded GET replies). **Confirmed live on M4216-LV 12.11.77 (2026-11-26): AX-E-001, -002, -005 applied, read back and rolled back.**
+- `syslog` column → change `SET-SYSLOG` (kind `syslog`): Remote Syslog API `setup` (servers, max 2) then `enable`/`disable`; read back via AX-C-006 `status`; undo restores the old server list and state. Format `address[:port][/udp|tcp|tls]`, default TLS 6514 (UDP 514, TCP 601). Simulated statefully. **Confirmed live on M4216-LV 12.11.77 (2026-11-26): set UDP server, read back (status shows syslogFormat RFC5424, severity Warning, type All), rolled back to disabled with no servers.**
+- **Firewall (AX-C-009 / `allow` column → `SET-FIREWALL`, kind `firewall`, group 6 = last, disruptive):** AX-C-009 on
+  11.9+ reads `GET /config/rest/firewall/v1` (`activated`, `conf.rules.activeDefaultPolicy/activeRules`). Actions are
+  `POST /config/rest/firewall/v1/conf/<action>` with `{"data": ...}` (`data: null` for no-input actions);
+  `PATCH .../activated {"data": bool}`. **12.11 refuses `setRules` with a `fallbackTime` while the firewall is off**
+  ("Can not test rules while firewall is inactive"), so: off → `setRules(ACCEPT, [], fallbackTime 0)` → activate →
+  `setRules(DROP, allow rules + this PC, fallbackTime 60)` → reconnect on a fresh connection → `confirmRules`; if the
+  camera does not answer, no confirm (camera reverts itself) and the camera is reported LOST_CONTACT. Undo: deactivate
+  first, then `setRules(old, fallbackTime 0)`. Rules are FILTER/ACCEPT on `ip` (address or network) or `ipRange`;
+  null fields from the camera are stripped before writing. This PC's address = `local_ip_for(camera)` (UDP connect,
+  no traffic). The pre-11.9 IP filter is never written. **Confirmed live on M4216-LV 12.11.77 (2026-11-26): allow
+  this PC + one server set, read back (DROP + 2 rules), rolled back to disabled.**
+- **802.1X (`dot1x` on/off + `dot1x_identity` → `SET-DOT1X`, param writes to `root.Network.Interface.I*.dot1x.Enabled`
+  / `.EAPTLS.Identity`, group 7 = very last, disruptive):** after writing, `run_dot1x` keeps checking on fresh
+  connections for `DOT1X_WATCH` s that the camera still answers; if not → LOST_CONTACT with recovery advice. **There
+  is no automatic undo** (unlike the firewall). Certificates for 802.1X are not exposed by any API on 12.11 (cert API
+  has keystores, no 802.1X binding), so they must already be on the camera. **Confirmed live on M4216-LV 12.11.77
+  (2026-11-26): 802.1X off + identity changed (Status becomes `Stopped`), read back, rolled back to on + original
+  identity.**
+- Still to do: OpenID, certificates.

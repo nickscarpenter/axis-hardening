@@ -99,7 +99,8 @@ it will become. Nothing happens until you press **Apply**.
 - **Back to factory default** rows (orange) appear for settings the chosen profile leaves out. A profile is the
   complete wanted state, so applying basic-safe after Vysiion turns the SD card slot back on. Untick them to leave
   those settings alone.
-- **Camera settings from your list** (host name, DNS, NTP, time zone) appear as *Set ...* rows whatever the profile.
+- **Camera settings from your list** (host name, DNS, NTP, time zone, syslog, firewall) appear as *Set ...* rows whatever the profile.
+- **Firewall** (AXIS OS 11.9+, `allow` column) is risky, so it starts unticked. The tool switches the firewall on with an accept-all set, then sets the real rules with the camera's own 60-second auto-revert, reconnects, and only confirms if the camera still answers. If it cannot reach the camera, it does not confirm and the camera restores access by itself.
 - **Restarts:** the TLS cipher change only takes effect after a restart. When it is needed the program offers to
   restart exactly those cameras and waits until each answers again (also *Tools > Restart cameras...*).
 
@@ -170,6 +171,9 @@ zone and account roles.
 | `dns` | | One or two DNS server IPs, separated by `;` |
 | `ntp` | | One time server, IP or host name |
 | `timezone` | | Pick from the list, e.g. `Europe/London` |
+| `syslog` | | Remote syslog server(s): `address[:port][/protocol]` (protocol `udp`, `tcp` or `tls`), up to two separated by `;`. Default TLS on port 6514, e.g. `10.0.0.9:514/udp` |
+| `allow` | | **Firewall** allow list (AXIS OS 11.9+): addresses that may reach the camera, separated by `;`: IPs, networks (`10.0.200.0/24`) or ranges (`10.0.0.5-10.0.0.9`). Everything else is blocked; the PC running the tool is always added. **Wrong values cut off the VMS** |
+| `dot1x` / `dot1x_identity` | | IEEE 802.1X `on` or `off`, and the EAP-TLS identity. The camera's certificate and the switch/RADIUS must already be set up. **If they are not, the camera can drop off the network and cannot be reached to undo it** |
 | `new_username` / `new_role` / `new_password` | | Account to create (see section 5). Role: `viewer`, `operator` or `admin`, optionally `+ptz` |
 | `new_username2` / `new_role2` / `new_password2` | | A second account to create |
 
@@ -227,7 +231,8 @@ axharden-gui.cmd          (Linux: ./axharden-gui.sh)
 - **Write order per camera:** ordinary settings in one batch, then app and REST settings, then the cipher list, then
   HTTPS only (after proving HTTPS works), then web interface off (then checks the API still answers). If a camera
   stops answering after a risky step, work on that camera stops and it is reported as *Lost contact*.
-- **It never writes** firewall or IP filter rules, never enables Strict security mode, and never changes existing
+- **The firewall** is only set from the `allow` column, with the camera's auto-revert safety net. The older IP filter
+  (before AXIS OS 11.9) is never written. It never enables Strict security mode, and never changes existing
   accounts or passwords.
 - **Unreachable cameras**, wrong passwords and certificate problems are recorded per camera; the rest carry on.
 

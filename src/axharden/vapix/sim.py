@@ -54,6 +54,8 @@ class SimDevice:
         self.restart_down_checks = 2                  # connection attempts that fail after a restart
         self.down_checks = 0
         self.stays_down = False                       # never comes back after a restart (tests)
+        self.client_ip: str | None = None             # address the "camera" sees the tool coming from (firewall)
+        self.fw_prev: tuple | None = None             # (policy, rules) to fall back to while new rules are unconfirmed
 
     def groups(self) -> dict[str, list[str]]:
         """User groups, seeded from the recorded pwdgrp.cgi reply."""
@@ -105,8 +107,63 @@ class SimClient:
         if self.dev.down_checks > 0 or (self.dev.stays_down and self.dev.restarts):
             self.dev.down_checks -= 1
             raise Unreachable("Connection failed: simulated camera is restarting")
+        if self._fw_blocked():
+            if self.dev.fw_prev is not None:          # unconfirmed rules: the camera's fallback timer puts them back
+                self.dev.fw["conf"]["rules"]["activeDefaultPolicy"], self.dev.fw["conf"]["rules"]["activeRules"] = \
+                    self.dev.fw_prev
+                self.dev.fw_prev = None
+            raise Unreachable("Connection failed: simulated firewall drops this PC")
         if self.scheme == "http" and self._https_only():
             raise Unreachable("Connection failed: simulated camera only accepts HTTPS")
+
+    def _fw_state(self) -> dict | None:
+        d = self.dev
+        if not hasattr(d, "fw"):
+            rec = d.recorded("/config/rest/firewall/v1")
+            d.fw = (json.loads(rec["text"]) or {}).get("data") if rec and rec.get("status") == 200 else None
+        return d.fw
+
+    def _fw_blocked(self) -> bool:
+        fw = self._fw_state()
+        if not fw or not fw.get("activated"):
+            return False
+        rules = fw["conf"]["rules"]
+        if rules.get("activeDefaultPolicy") != "DROP":
+            return False
+        from ..apply import _allowed, _rule_key, local_ip_for
+        ip = self.dev.client_ip or local_ip_for(self.camera.host) or "127.0.0.1"
+        return not _allowed(ip, [_rule_key(r) for r in rules.get("activeRules") or []])
+
+    def _firewall(self, method: str, path: str, body: dict | None) -> SimResponse:
+        fw = self._fw_state()
+        if fw is None:
+            return SimResponse(404, "")
+        d, rules, data = self.dev, fw["conf"]["rules"], (body or {}).get("data")
+        ok = SimResponse(200, json_dumps({"status": "success"}))
+        if method == "GET":
+            rules["testTimeLeft"] = 60 if d.fw_prev is not None else 0
+            return SimResponse(200, json_dumps({"status": "success", "data": fw}))
+        if method == "PATCH" and path.endswith("/activated"):
+            fw["activated"] = bool(data)
+            d.write_log.append(("firewall:activated", str(fw["activated"])))
+            return ok
+        if path.endswith("/conf/setRules"):
+            if data.get("fallbackTime") and not fw.get("activated"):   # as the real camera (12.11)
+                return SimResponse(400, json_dumps({"status": "error", "error": {
+                    "code": 103, "message": "Backend defined error: Can not test rules while firewall is inactive"}}))
+            d.fw_prev = (rules["activeDefaultPolicy"], list(rules["activeRules"])) if data.get("fallbackTime") else None
+            rules["activeDefaultPolicy"], rules["activeRules"] = data["defaultPolicy"], list(data["rules"])
+            d.write_log.append(("firewall:setRules", json_dumps(data)))
+            return ok
+        if path.endswith("/conf/confirmRules"):
+            d.fw_prev = None
+            return ok
+        if path.endswith("/conf/clearPendingRules"):
+            if d.fw_prev is not None:
+                rules["activeDefaultPolicy"], rules["activeRules"] = d.fw_prev
+                d.fw_prev = None
+            return ok
+        return SimResponse(400, json_dumps({"status": "error", "error": {"message": "unknown"}}))
 
     def _https_only(self) -> bool:
         vals = [self.dev.params.get(f"root.System.BoaGroupPolicy.{g}", "") for g in ("admin", "operator", "viewer")]
@@ -217,7 +274,7 @@ class SimClient:
         if p == "/axis-cgi/applications/config.cgi":
             name = query.get("name", "")
             rec = d.recorded(f"/axis-cgi/applications/config.cgi?action=get&name={name}")
-            if rec is not None and rec.get("status") in (404, 501):
+            if rec is not None and rec.get("status") in (400, 404, 501):
                 return SimResponse(rec["status"], rec.get("text", ""))
             if name not in d.app_config:
                 m = re.search(r'value="([^"]*)"', (rec or {}).get("text", "")) if rec else None
@@ -239,6 +296,15 @@ class SimClient:
                 return SimResponse(200, json_dumps({"status": "success"}))
             return SimResponse(200, json_dumps({"status": "success", "data": d.allow_anonymous}))
 
+        if p.startswith("/config/rest/firewall/v1"):
+            return self._firewall(method, p, body)
+
+        if p.startswith("/config/rest/") and p != "/config/rest/basic-device-info/v2beta/allowAnonymous":
+            return self._rest(method, p, body)
+
+        if p == "/axis-cgi/remotesyslog.cgi" and d.probes.get("POST /axis-cgi/remotesyslog.cgi status"):
+            return self._syslog(body or {})
+
         if method == "POST" and isinstance(body, dict):
             rec = d.probes.get(f"POST {p} {body.get('method')}")
             if rec is not None:
@@ -248,6 +314,65 @@ class SimClient:
             return SimResponse(rec.get("status") or 500, rec.get("text", ""))
         return SimResponse(404, "")
 
+
+    def _syslog(self, body: dict) -> SimResponse:
+        """Remote Syslog API (status / setup / enable / disable), seeded from the recorded status reply."""
+        d = self.dev
+        if not hasattr(d, "syslog"):
+            rec = d.probes["POST /axis-cgi/remotesyslog.cgi status"]
+            d.syslog = (json.loads(rec["text"]) or {}).get("data") or {"enabled": False, "servers": []}
+        method = body.get("method")
+
+        def reply(**kw):
+            return SimResponse(200, json_dumps({"apiVersion": "1.0", "method": method, **kw}))
+        if method == "status":
+            return reply(data=d.syslog)
+        if method == "setup":
+            servers = list((body.get("params") or {}).get("servers") or [])
+            if len(servers) > 2:
+                return reply(error={"code": 2203, "message": "Too many servers specified"})
+            if any(not s.get("address") for s in servers):
+                return reply(error={"code": 2103, "message": "Required parameter missing"})
+            defaults = {"protocol": "TLS", "port": 6514, "syslogFormat": "RFC5424", "severity": "Warning", "type": "All"}
+            d.syslog = {"enabled": False, "servers": [{**defaults, **s} for s in servers]}   # setup disables
+            d.write_log.append(("syslog:setup", json_dumps(servers)))
+            return reply(data=d.syslog)
+        if method == "enable":
+            if not d.syslog["servers"]:
+                return reply(error={"code": 2200, "message": "No server configured"})
+            d.syslog["enabled"] = True
+            return reply(data=d.syslog)
+        if method == "disable":
+            d.syslog["enabled"] = False
+            return reply(data=d.syslog)
+        return reply(error={"code": 2102, "message": f"Method not supported: '{method}'"})
+
+    def _rest(self, method: str, path: str, body: dict | None) -> SimResponse:
+        """Device Configuration REST APIs, backed by recorded GET replies: GET <api>, PATCH <api>/<property>."""
+        d = self.dev
+        if not hasattr(d, "rest"):
+            d.rest = {}
+        if method == "PATCH":
+            base, prop = path.rsplit("/", 1)
+            state = self._rest_state(base)
+            if state is None or prop not in state:
+                return SimResponse(404, json_dumps({"status": "error", "error": {"message": "not found"}}))
+            state[prop] = (body or {}).get("data")
+            d.write_log.append((f"rest:{base}#{prop}", json_dumps(state[prop])))
+            return SimResponse(200, json_dumps({"status": "success"}))
+        state = self._rest_state(path)
+        if state is None:
+            return SimResponse(404, "")
+        return SimResponse(200, json_dumps({"status": "success", "data": state}))
+
+    def _rest_state(self, path: str) -> dict | None:
+        d = self.dev
+        if path not in d.rest:
+            rec = d.recorded(path)
+            if not rec or rec.get("status") != 200:
+                return None
+            d.rest[path] = (json.loads(rec["text"]) or {}).get("data") or {}
+        return d.rest[path]
 
     def _netset(self, body: dict) -> SimResponse:
         """Network settings API: resolver part only, backed by the root.Network.Resolver.* params."""

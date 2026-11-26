@@ -16,7 +16,7 @@ from typing import Callable, Iterable
 from .logging_setup import register_secret
 
 COLUMNS = ["ip", "username", "password", "name", "customer", "protocol", "profile", "ports", "notes",
-           "hostname", "dns", "ntp", "timezone",
+           "hostname", "dns", "ntp", "timezone", "syslog", "allow", "dot1x", "dot1x_identity",
            "new_username", "new_password", "new_role", "new_username2", "new_password2", "new_role2"]
 SECRET_COLUMNS = ("password", "new_password", "new_password2")   # kept exactly as typed (no stripping)
 NEW_ACCOUNT_SLOTS = ("", "2")   # column suffixes: new_username / new_username2, ...
@@ -84,6 +84,10 @@ class Camera:
     dns: list[str] = field(default_factory=list)          # 0-2 DNS servers to set
     ntp: str = ""                                         # NTP server to set (IP or host name)
     timezone: str = ""                                    # IANA name from timezones.ZONES, or a POSIX rule
+    syslog: list[dict] = field(default_factory=list)      # 0-2 remote syslog servers {address, port, protocol}
+    allow: list[str] = field(default_factory=list)        # firewall allow list: IPs, networks (a.b.c.0/24), ranges (a-b)
+    dot1x: str = ""                                       # "on" / "off" (IEEE 802.1X), blank = leave alone
+    dot1x_identity: str = ""                              # EAP-TLS identity, blank = leave alone
     row: int = 0
     new_accounts: list[NewAccount] = field(default_factory=list, repr=False)   # 0-2 accounts to create
 
@@ -104,6 +108,7 @@ class Camera:
             "protocol": self.protocol, "profile": self.profile, "ports": self.ports,
             "notes": self.notes, "username": self.credential.username,
             "hostname": self.hostname, "dns": self.dns, "ntp": self.ntp, "timezone": self.timezone,
+            "syslog": self.syslog, "allow": self.allow, "dot1x": self.dot1x, "dot1x_identity": self.dot1x_identity,
             "new_accounts": [a.public_dict() for a in self.new_accounts],
         }
 
@@ -130,6 +135,71 @@ def _is_ip(text: str) -> bool:
         return False
 
 
+SYSLOG_DEFAULT_PORT = {"tls": 6514, "tcp": 601, "udp": 514}   # RFC5424 defaults (Remote Syslog API)
+
+
+def parse_onoff(text: str) -> str:
+    t = (text or "").strip().lower()
+    if not t:
+        return ""
+    if t in ("on", "yes", "enabled", "enable", "true", "1"):
+        return "on"
+    if t in ("off", "no", "disabled", "disable", "false", "0"):
+        return "off"
+    raise ValueError(f"{text!r}: use on or off")
+
+
+def parse_allow(text: str) -> list[str]:
+    """Firewall allow list: '10.0.0.5; 10.0.200.0/24; 10.0.0.10-10.0.0.20' -> normalised strings. ValueError."""
+    out = []
+    for item in [x.strip() for x in re.split(r"[;,\s]+", text or "") if x.strip()]:
+        if "-" in item:
+            a, b = (x.strip() for x in item.split("-", 1))
+            try:
+                lo, hi = ipaddress.ip_address(a), ipaddress.ip_address(b)
+            except ValueError:
+                raise ValueError(f"{item!r} is not a valid address range (e.g. 10.0.0.10-10.0.0.20)") from None
+            if lo.version != hi.version or lo > hi:
+                raise ValueError(f"{item!r}: the first address must come before the second")
+            out.append(f"{lo}-{hi}")
+            continue
+        try:
+            net = ipaddress.ip_network(item, strict=False)
+        except ValueError:
+            raise ValueError(f"{item!r} is not an IP address, network (a.b.c.0/24) or range") from None
+        if net.prefixlen == 0:
+            raise ValueError(f"{item!r} would allow everyone: give specific addresses or networks")
+        out.append(str(net.network_address) if net.num_addresses == 1 else str(net))
+    return out
+
+
+def parse_syslog(text: str) -> list[dict]:
+    """'10.0.0.9' / '10.0.0.9:514/udp' / 'logs.local/tcp; 10.0.0.10' -> [{address, port, protocol}]. ValueError."""
+    servers = []
+    for item in [x.strip() for x in re.split(r"[;,]", text or "") if x.strip()]:
+        proto = "tls"
+        if "/" in item:
+            item, proto = item.rsplit("/", 1)
+            proto = proto.strip().lower()
+            if proto not in SYSLOG_DEFAULT_PORT:
+                raise ValueError(f"protocol {proto!r} must be udp, tcp or tls")
+        port = SYSLOG_DEFAULT_PORT[proto]
+        if item.count(":") == 1:                    # host:port (IPv6 addresses are given without a port)
+            item, port_text = item.split(":")
+            if not port_text.isdigit() or not 1 <= int(port_text) <= 65535:
+                raise ValueError(f"port {port_text!r} must be a number from 1 to 65535")
+            port = int(port_text)
+        addr = item.strip()
+        if not (_is_ip(addr) or _HOSTNAME_RE.match(addr)):
+            raise ValueError(f"{addr!r} is not an IP address or host name")
+        servers.append({"address": addr, "port": port, "protocol": proto.upper()})
+    if len(servers) > 2:
+        raise ValueError("give at most two syslog servers")
+    if len(servers) == 2 and servers[0] == servers[1]:
+        raise ValueError("the two syslog servers are the same")
+    return servers
+
+
 def network_problems(row: dict[str, str]) -> list[str]:
     """Validate the hostname / dns / ntp / timezone columns of one row."""
     from .timezones import resolve
@@ -147,6 +217,21 @@ def network_problems(row: dict[str, str]) -> list[str]:
         out.append("ntp: give one time server (the camera stores a single NTP server)")
     elif ntp and not (_is_ip(ntp) or _HOSTNAME_RE.match(ntp)):
         out.append(f"ntp: {ntp!r} is not an IP address or host name")
+    try:
+        parse_syslog(row.get("syslog", ""))
+    except ValueError as e:
+        out.append(f"syslog: {e}")
+    try:
+        parse_allow(row.get("allow", ""))
+    except ValueError as e:
+        out.append(f"allow: {e}")
+    try:
+        parse_onoff(row.get("dot1x", ""))
+    except ValueError as e:
+        out.append(f"dot1x: {e}")
+    ident = row.get("dot1x_identity", "").strip()
+    if ident and not re.fullmatch(r"[\w.@+=-]{1,128}", ident):
+        out.append(f"dot1x_identity {ident!r}: letters, digits and . @ + = - _ only (up to 128)")
     tz = row.get("timezone", "").strip()
     if tz:
         try:
@@ -338,6 +423,8 @@ def load_inventory(path: str | os.PathLike, prompt: PromptFn | None = _default_p
             profile=row.get("profile", ""), ports=ports, notes=row.get("notes", ""), row=i,
             hostname=row.get("hostname", "").strip(), dns=split_list(row.get("dns", "")),
             ntp=row.get("ntp", "").strip(), timezone=row.get("timezone", "").strip(),
+            syslog=parse_syslog(row.get("syslog", "")), allow=parse_allow(row.get("allow", "")),
+            dot1x=parse_onoff(row.get("dot1x", "")), dot1x_identity=row.get("dot1x_identity", "").strip(),
             new_accounts=new_accounts,
         ))
     if errors:
@@ -375,6 +462,15 @@ COLUMN_HELP = {
     "dns": ("Optional", "One or two DNS server IP addresses, separated by ';' (e.g. 10.0.0.2;10.0.0.3)."),
     "ntp": ("Optional", "One time server: IP address or host name (e.g. 10.0.0.2 or ntp.example.local)."),
     "timezone": ("Optional", "Pick from the list (e.g. Europe/London)."),
+    "allow": ("Optional", "Firewall allow list (AXIS OS 11.9+): addresses that may reach the camera, separated by ';'. "
+                          "IPs, networks (10.0.200.0/24) or ranges (10.0.0.5-10.0.0.9). Everything else is blocked. "
+                          "The PC running the tool is always added. WRONG VALUES CAN CUT OFF THE VMS."),
+    "dot1x": ("Optional", "IEEE 802.1X: on or off. The camera's certificate must already be set up for 802.1X, and "
+                          "the switch/RADIUS must accept it. IF THEY DO NOT, THE CAMERA CAN DROP OFF THE NETWORK and "
+                          "cannot be reached to undo it."),
+    "dot1x_identity": ("Optional", "EAP-TLS identity the camera presents (blank = leave as it is)."),
+    "syslog": ("Optional", "Remote syslog server(s): address[:port][/udp|tcp|tls], up to two separated by ';'. "
+                           "Default TLS on port 6514, e.g. 10.0.0.9 or 10.0.0.9:514/udp."),
     "new_username": ("Optional", "Account to CREATE on this camera (Create accounts...). Letters and digits only."),
     "new_password": ("Optional", "Password for that account (8+ characters). Blank = asked when the account is "
                                  "created."),

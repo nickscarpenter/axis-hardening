@@ -27,6 +27,12 @@ def m4216():
     return json.loads((FIXTURES / "m4216lv_10.12.252.json").read_text(encoding="utf-8"))
 
 
+@pytest.fixture
+def m4216_12():
+    """Real (anonymised) AXIS M4216-LV AXIS OS 12.11.77 discover fixture (same camera after a firmware upgrade)."""
+    return json.loads((FIXTURES / "m4216lv_12.11.77.json").read_text(encoding="utf-8"))
+
+
 def variant(base: dict, version: str, host: str, drop: tuple[str, ...] = (), set_: dict | None = None) -> dict:
     """Derive a synthetic fixture for another AXIS OS version."""
     snap = copy.deepcopy(base)

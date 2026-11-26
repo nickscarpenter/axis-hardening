@@ -280,7 +280,8 @@ def profile_slug(name: str) -> str:
 
 def save_profile(folder: str | Path, name: str, description: str, control_ids: list[str], catalog: Catalog,
                  author: str = "") -> Path:
-    """Write a custom profile as a self-contained YAML file (explicit control list, check controls included)."""
+    """Write a custom profile as a self-contained YAML file: an explicit list of the settings it may change and
+    the read-only checks it is scored on (include_checks: false, so unticked checks stay out)."""
     slug = profile_slug(name)
     if not slug:
         raise CatalogError("Give the profile a name (letters, numbers and dashes).")
@@ -288,8 +289,9 @@ def save_profile(folder: str | Path, name: str, description: str, control_ids: l
         raise CatalogError(f"'{slug}' is a built-in profile and cannot be overwritten. Choose another name.")
     for cid in control_ids:
         catalog.get(cid)
-    apply_ids = [c.id for c in catalog.controls if c.id in set(control_ids) and c.kind == "apply"]
-    doc = {"name": slug, "description": description.strip(), "include_checks": True, "controls": apply_ids}
+    # explicit list in catalog order: the settings it may change and the checks it is scored on
+    ids = [c.id for c in catalog.controls if c.id in set(control_ids)]
+    doc = {"name": slug, "description": description.strip(), "include_checks": False, "controls": ids}
     if author:
         doc["created_by"] = author
     import datetime as _dt

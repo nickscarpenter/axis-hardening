@@ -404,6 +404,91 @@ controls:
   opt_in: true
   warning: "Can stop vulnerability scanners identifying the device (guide p.19)."
 
+# ---------------------------------------------------------------- EXTRA APPLY controls (AX-E-*)
+# Fixes for CHECK findings. Opt-in only: in no built-in profile, and no default (never reverted automatically).
+
+- id: AX-E-001
+  title: Enable secure streaming (RTSPS/SRTP)
+  feature: "RTSPS/SRTP"
+  states: {hardened: "Enabled", unhardened: "Disabled"}
+  guide_section: "Extended hardening > Secure streaming"
+  guide_page: 25
+  csc: ["3"]
+  level: extended
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.RTSPS.Enabled, hardened: "yes"}
+  opt_in: true
+  warning: "Only useful if the VMS supports RTSPS; ordinary RTSP keeps working."
+  verified_on: ["M4216-LV 10.12.252", "M4216-LV 12.11.77"]
+
+- id: AX-E-002
+  title: Enable signed video
+  feature: "Signed video"
+  states: {hardened: "Enabled", unhardened: "Disabled"}
+  guide_section: "Default protection > Signed video"
+  guide_page: 11
+  csc: ["3"]
+  level: extended
+  kind: apply
+  method: param
+  params:
+    - {name: "root.Image.I*.MPEG.SignedVideo.Enabled", hardened: "yes"}
+  missing_status: na
+  opt_in: true
+  warning: "The VMS needs signed-video support to verify recordings; players without it still show the video."
+  verified_on: ["M4216-LV 10.12.252", "M4216-LV 12.11.77"]
+
+- id: AX-E-003
+  title: Disable SNMP v1 and v2c
+  feature: "SNMP v1/v2c"
+  states: {hardened: "Disabled", unhardened: "Enabled"}
+  guide_section: "Extended hardening > SNMP"
+  guide_page: 25
+  csc: ["4"]
+  level: extended
+  kind: apply
+  method: param
+  params:
+    - {name: root.SNMP.V1, hardened: "no"}
+    - {name: root.SNMP.V2c, hardened: "no"}
+  opt_in: true
+  warning: "Monitoring tools that read the camera over SNMP v1/v2c stop working (v3 is left as it is)."
+  verified_on: ["M4216-LV 10.12.252", "M4216-LV 12.11.77"]
+
+- id: AX-E-004
+  title: Enable network filter logging
+  feature: "Network filter logging"
+  states: {hardened: "Enabled", unhardened: "Disabled"}
+  guide_section: "Basic hardening > Limit network access > IP address filtering"
+  guide_page: 23
+  csc: ["13"]
+  level: extended
+  kind: apply
+  method: param
+  params:
+    - {name: root.Network.Filter.Log.Enabled, hardened: "yes"}
+  removed_in: "12.0"
+  opt_in: true
+  verified_on: ["M4216-LV 10.12.252"]
+
+- id: AX-E-005
+  title: Disable LLDP/CDP
+  feature: "LLDP/CDP"
+  states: {hardened: "Disabled", unhardened: "Enabled"}
+  guide_section: "Basic hardening > Disable unused services/functions > Network discovery protocols"
+  guide_page: 19
+  csc: ["4"]
+  level: extended
+  kind: apply
+  method: handler
+  handler: rest_property
+  handler_args: {path: /config/rest/lldp/v1, property: activated, hardened: false}
+  opt_in: true
+  warning: "Switches use LLDP to agree PoE power: disabling it can leave the camera under-powered on some switches (p.19)."
+  verified_on: ["M4216-LV 12.11.77"]
+
 # ---------------------------------------------------------------- CHECK controls (read and report only)
 
 - {id: AX-C-001, title: AXIS OS version, guide_section: "Basic hardening > Commissioning > Upgrade to latest AXIS OS", guide_page: 15, csc: ["2"], level: basic, kind: check, method: handler, handler: os_version, expect: "At or above the site minimum AXIS OS"}

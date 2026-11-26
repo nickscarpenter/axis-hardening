@@ -1282,6 +1282,14 @@ class FixDialog:
         self.app.start_apply(chosen, profile)
 
 
+EDITOR_GROUPS = [
+    ("default", "Default protection (on by default in newer AXIS OS)"),
+    ("basic", "Basic hardening (guide pp.32-34)"),
+    ("legacy", "Older AXIS OS only (feature removed in later versions)"),
+    ("extended", "Extended hardening"),
+    ("check", "Checks (read only: counted in the score when checking against this profile, never changed)"),
+]
+
 LEVEL_GROUPS = [
     ("default", "Default protection (on by default in newer AXIS OS)"),
     ("basic", "Basic hardening (guide pp.32-34)"),
@@ -1298,7 +1306,7 @@ class ProfileEditor:
         self.app = app
         self.on_close = on_close
         self.saved: str | None = None
-        self.controls = [c for c in app.catalog.controls if c.kind == "apply"]
+        self.controls = list(app.catalog.controls)      # changeable settings and read-only checks
         self.by_id = {c.id: c for c in self.controls}
         self.ticked: set[str] = set()
         self.current = None      # Profile being shown (None = new blank)
@@ -1314,9 +1322,10 @@ class ProfileEditor:
         f.columnconfigure(0, weight=1)
         f.rowconfigure(4, weight=1)
 
-        ttk.Label(f, text="A profile is the list of settings \"Fix problems...\" may change. The Axis-recommended "
-                  "profiles come from the hardening guide and cannot be edited. To make your own, start from one, "
-                  "tick or untick settings, type a new name and press Save.", wraplength=880, justify="left").grid(
+        ttk.Label(f, text="A profile is the list of settings \"Fix problems...\" may change, and the checks a camera is "
+                  "scored against when you choose it under \"Check against\". The Axis-recommended profiles come "
+                  "from the hardening guide and cannot be edited. To make your own, start from one, tick or "
+                  "untick settings and checks, type a new name and press Save.", wraplength=880, justify="left").grid(
             row=0, column=0, sticky="w")
 
         top = ttk.Frame(f)
@@ -1389,7 +1398,13 @@ class ProfileEditor:
     def _available(ctl) -> bool:
         return ctl.handler != "network_ports"     # network port controls: phase 3
 
+    @staticmethod
+    def _group(ctl) -> str:
+        return "check" if ctl.kind == "check" else ctl.level
+
     def _note(self, ctl) -> str:
+        if ctl.kind == "check":
+            return "Read only (never changed): " + (f"should be {ctl.expect}" if ctl.expect else "reported")
         if not self._available(ctl):
             return "Not available yet (network port controls come in a later version)"
         notes = []
@@ -1410,8 +1425,8 @@ class ProfileEditor:
         return "; ".join(notes)
 
     def _build_rows(self) -> None:
-        for level, label in LEVEL_GROUPS:
-            ctls = [c for c in self.controls if c.level == level]
+        for level, label in EDITOR_GROUPS:
+            ctls = [c for c in self.controls if self._group(c) == level]
             if not ctls:
                 continue
             self.tree.insert("", "end", iid=f"group:{level}", values=("", "", label, "", "click to tick/untick the group"),
@@ -1426,10 +1441,10 @@ class ProfileEditor:
             vals = list(self.tree.item(c.id, "values"))
             vals[0] = TICK if c.id in self.ticked else UNTICK
             self.tree.item(c.id, values=vals)
-        for level, _ in LEVEL_GROUPS:
+        for level, _ in EDITOR_GROUPS:
             gid = f"group:{level}"
             if self.tree.exists(gid):
-                ids = [c.id for c in self.controls if c.level == level and self._available(c)]
+                ids = [c.id for c in self.controls if self._group(c) == level and self._available(c)]
                 on = sum(i in self.ticked for i in ids)
                 vals = list(self.tree.item(gid, "values"))
                 vals[0] = TICK if ids and on == len(ids) else ("▣" if on else UNTICK)
@@ -1437,7 +1452,10 @@ class ProfileEditor:
         n = len(self.ticked)
         risky = sum(needs_extra_confirm(self.by_id[i]) for i in self.ticked)
         total = sum(map(self._available, self.controls))
-        self.lbl_count.configure(text=f"{n} of {total} settings ticked" + (f" ({risky} risky)" if risky else ""))
+        n_chk = sum(self.by_id[i].kind == "check" for i in self.ticked)
+        t_chk = sum(c.kind == "check" for c in self.controls)
+        self.lbl_count.configure(text=f"{n - n_chk} of {total - t_chk} settings and {n_chk} of {t_chk} checks ticked"
+                                 + (f" ({risky} risky)" if risky else ""))
 
     # ---------------------------------------------------------------- choosing a profile
     def _fill_choices(self, select: str | None) -> None:
@@ -1516,7 +1534,7 @@ class ProfileEditor:
             return
         if iid.startswith("group:"):
             level = iid.split(":", 1)[1]
-            ids = [c.id for c in self.controls if c.level == level and self._available(c)]
+            ids = [c.id for c in self.controls if self._group(c) == level and self._available(c)]
             safe = [i for i in ids if not needs_extra_confirm(self.by_id[i])]
             if all(i in self.ticked for i in safe):
                 self.ticked.difference_update(ids)

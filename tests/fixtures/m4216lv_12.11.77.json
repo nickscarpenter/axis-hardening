@@ -1,0 +1,1738 @@
+{
+ "snapshot_version": 1,
+ "tool_version": "0.1.0",
+ "camera": {
+  "host": "192.0.2.12",
+  "port": null,
+  "name": "Lab camera 12.11 (demo)",
+  "customer": "Demo customer",
+  "protocol": "https",
+  "profile": "",
+  "ports": [],
+  "notes": "discover fixture (anonymised)",
+  "username": "root"
+ },
+ "device": {
+  "Architecture": "aarch64",
+  "ProdNbr": "M4216-LV",
+  "HardwareID": "7EA.2",
+  "ProdFullName": "AXIS M4216-LV Network Camera",
+  "Version": "12.11.77",
+  "ProdType": "Network Camera",
+  "SocSerialNumber": "6A299459-9C3DE5B2-168D414C-004DA83C",
+  "Soc": "Ambarella CV25",
+  "Brand": "AXIS",
+  "WebURL": "https://www.axis.com",
+  "ProdVariant": "",
+  "SerialNumber": "ACCC8E000012",
+  "ProdShortName": "AXIS M4216-LV",
+  "BuildDate": "Jul 08 2026 12:15",
+  "MAC": "AC:CC:8E:00:00:12"
+ },
+ "params": {
+  "root.API.RemoteSyslog1.Enabled": "false",
+  "root.API.RemoteSyslog1.Server1.Address": "",
+  "root.API.RemoteSyslog1.Server1.Port": "6514",
+  "root.API.RemoteSyslog1.Server1.Protocol": "TLS",
+  "root.API.RemoteSyslog1.Server1.Severity": "Warning",
+  "root.API.RemoteSyslog1.Server1.SyslogFormat": "RFC5424",
+  "root.API.RemoteSyslog1.Server1.Type": "All",
+  "root.API.RemoteSyslog1.Server2.Address": "",
+  "root.API.RemoteSyslog1.Server2.Port": "6514",
+  "root.API.RemoteSyslog1.Server2.Protocol": "TLS",
+  "root.API.RemoteSyslog1.Server2.Severity": "Warning",
+  "root.API.RemoteSyslog1.Server2.SyslogFormat": "RFC5424",
+  "root.API.RemoteSyslog1.Server2.Type": "All",
+  "root.Audio.A0.Enabled": "no",
+  "root.Audio.A0.HTTPMessageType": "singlepart",
+  "root.Audio.A0.Name": "",
+  "root.Audio.A0.NbrOfChannels": "1",
+  "root.Audio.A0.Source": "0",
+  "root.Audio.A1.Enabled": "no",
+  "root.Audio.A1.HTTPMessageType": "singlepart",
+  "root.Audio.A1.Name": "",
+  "root.Audio.A1.NbrOfChannels": "1",
+  "root.Audio.A1.Source": "0",
+  "root.Audio.DSCP": "0",
+  "root.Audio.DuplexMode": "full",
+  "root.Audio.MaxListeners": "20",
+  "root.Audio.MaxTransmitters": "1",
+  "root.Audio.NbrOfConfigs": "2",
+  "root.Audio.ReceiverBuffer": "120",
+  "root.Audio.ReceiverTimeout": "1000",
+  "root.AudioSource.A0.AlarmLevel": "100",
+  "root.AudioSource.A0.AudioEncoding": "aac",
+  "root.AudioSource.A0.BitRate": "32000",
+  "root.AudioSource.A0.Name": "Audio",
+  "root.AudioSource.A0.NbrOfChannels": "1",
+  "root.AudioSource.A0.SampleRate": "48000",
+  "root.AudioSource.NbrOfSources": "0",
+  "root.Bandwidth.Limit": "0",
+  "root.BasicDeviceInfo.BasicDeviceInfo": "yes",
+  "root.Brand.Brand": "AXIS",
+  "root.Brand.ProdFullName": "AXIS M4216-LV Network Camera",
+  "root.Brand.ProdNbr": "M4216-LV",
+  "root.Brand.ProdShortName": "AXIS M4216-LV",
+  "root.Brand.ProdType": "Network Camera",
+  "root.Brand.ProdVariant": "",
+  "root.Brand.WebURL": "https://www.axis.com",
+  "root.HTTPS.Ciphers": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305",
+  "root.HTTPS.Enabled": "yes",
+  "root.HTTPS.Port": "443",
+  "root.Image.I0.Appearance.ColorEnabled": "yes",
+  "root.Image.I0.Appearance.Compression": "30",
+  "root.Image.I0.Appearance.MirrorEnabled": "no",
+  "root.Image.I0.Appearance.Overlays": "all",
+  "root.Image.I0.Appearance.Resolution": "2304x1728",
+  "root.Image.I0.Appearance.Rotation": "0",
+  "root.Image.I0.Enabled": "yes",
+  "root.Image.I0.MPEG.Complexity": "50",
+  "root.Image.I0.MPEG.ConfigHeaderInterval": "1",
+  "root.Image.I0.MPEG.FrameSkipMode": "drop",
+  "root.Image.I0.MPEG.H264.PSEnabled": "no",
+  "root.Image.I0.MPEG.H264.Profile": "high",
+  "root.Image.I0.MPEG.H265.PSEnabled": "no",
+  "root.Image.I0.MPEG.ICount": "1",
+  "root.Image.I0.MPEG.PCount": "31",
+  "root.Image.I0.MPEG.SignedVideo.Enabled": "no",
+  "root.Image.I0.MPEG.UserDataEnabled": "no",
+  "root.Image.I0.MPEG.UserDataInterval": "1",
+  "root.Image.I0.MPEG.ZChromaQPMode": "off",
+  "root.Image.I0.MPEG.ZFpsMode": "fixed",
+  "root.Image.I0.MPEG.ZGopMode": "fixed",
+  "root.Image.I0.MPEG.ZGradualDecodeRefresh": "auto",
+  "root.Image.I0.MPEG.ZMaxGopLength": "300",
+  "root.Image.I0.MPEG.ZMinFps": "0",
+  "root.Image.I0.MPEG.ZProfile": "classic",
+  "root.Image.I0.MPEG.ZProfileLevel": "0",
+  "root.Image.I0.MPEG.ZStrength": "10",
+  "root.Image.I0.Name": "View Area 1",
+  "root.Image.I0.Overlay.MaskWindows.Color": "black",
+  "root.Image.I0.RateControl.ABR.MaxBitrate": "0",
+  "root.Image.I0.RateControl.ABR.RetentionTime": "7",
+  "root.Image.I0.RateControl.ABR.TargetBitrate": "0",
+  "root.Image.I0.RateControl.MaxBitrate": "0",
+  "root.Image.I0.RateControl.Mode": "vbr",
+  "root.Image.I0.RateControl.Priority": "framerate",
+  "root.Image.I0.RateControl.TargetBitrate": "0",
+  "root.Image.I0.SizeControl.MaxFrameSize": "0",
+  "root.Image.I0.Source": "0",
+  "root.Image.I0.Stream.Duration": "0",
+  "root.Image.I0.Stream.FPS": "0",
+  "root.Image.I0.Stream.NbrOfFrames": "0",
+  "root.Image.I0.Type": "Viewarea",
+  "root.Image.I1.Appearance.ColorEnabled": "yes",
+  "root.Image.I1.Appearance.Compression": "30",
+  "root.Image.I1.Appearance.MirrorEnabled": "no",
+  "root.Image.I1.Appearance.Overlays": "all",
+  "root.Image.I1.Appearance.Resolution": "2304x1728",
+  "root.Image.I1.Appearance.Rotation": "0",
+  "root.Image.I1.Enabled": "no",
+  "root.Image.I1.MPEG.Complexity": "50",
+  "root.Image.I1.MPEG.ConfigHeaderInterval": "1",
+  "root.Image.I1.MPEG.FrameSkipMode": "drop",
+  "root.Image.I1.MPEG.H264.PSEnabled": "no",
+  "root.Image.I1.MPEG.H264.Profile": "high",
+  "root.Image.I1.MPEG.H265.PSEnabled": "no",
+  "root.Image.I1.MPEG.ICount": "1",
+  "root.Image.I1.MPEG.PCount": "31",
+  "root.Image.I1.MPEG.SignedVideo.Enabled": "no",
+  "root.Image.I1.MPEG.UserDataEnabled": "no",
+  "root.Image.I1.MPEG.UserDataInterval": "1",
+  "root.Image.I1.MPEG.ZChromaQPMode": "off",
+  "root.Image.I1.MPEG.ZFpsMode": "fixed",
+  "root.Image.I1.MPEG.ZGopMode": "fixed",
+  "root.Image.I1.MPEG.ZGradualDecodeRefresh": "auto",
+  "root.Image.I1.MPEG.ZMaxGopLength": "300",
+  "root.Image.I1.MPEG.ZMinFps": "0",
+  "root.Image.I1.MPEG.ZProfile": "classic",
+  "root.Image.I1.MPEG.ZProfileLevel": "0",
+  "root.Image.I1.MPEG.ZStrength": "10",
+  "root.Image.I1.Name": "View Area 2",
+  "root.Image.I1.RateControl.ABR.MaxBitrate": "0",
+  "root.Image.I1.RateControl.ABR.RetentionTime": "7",
+  "root.Image.I1.RateControl.ABR.TargetBitrate": "0",
+  "root.Image.I1.RateControl.MaxBitrate": "0",
+  "root.Image.I1.RateControl.Mode": "vbr",
+  "root.Image.I1.RateControl.Priority": "framerate",
+  "root.Image.I1.RateControl.TargetBitrate": "0",
+  "root.Image.I1.SizeControl.MaxFrameSize": "0",
+  "root.Image.I1.Source": "0",
+  "root.Image.I1.Stream.Duration": "0",
+  "root.Image.I1.Stream.FPS": "0",
+  "root.Image.I1.Stream.NbrOfFrames": "0",
+  "root.Image.I1.Type": "Viewarea",
+  "root.Image.MaxViewers": "10",
+  "root.Image.NbrOfConfigs": "2",
+  "root.Image.PrivacyMaskType": "none",
+  "root.Image.RFCCompliantMultipartEnabled": "yes",
+  "root.Image.Referrers": "",
+  "root.Image.ReferrersEnabled": "no",
+  "root.ImageSource.I0.CameraTiltOrientation": "0",
+  "root.ImageSource.I0.CaptureFrequency": "50Hz",
+  "root.ImageSource.I0.DayNight.IrCutFilter": "auto",
+  "root.ImageSource.I0.DayNight.ShiftLevel": "100",
+  "root.ImageSource.I0.Focus.Mode": "offset",
+  "root.ImageSource.I0.Focus.NearLimit": "0",
+  "root.ImageSource.I0.Focus.Pos": "-1",
+  "root.ImageSource.I0.Focus.Window.W0": "0.15,0.15:0.85,0.15:0.85,0.85:0.15,0.85",
+  "root.ImageSource.I0.Name": "Camera",
+  "root.ImageSource.I0.Rotation": "0",
+  "root.ImageSource.I0.Sensor.AspectRatio": "4:3",
+  "root.ImageSource.I0.Sensor.BlueBalance": "50",
+  "root.ImageSource.I0.Sensor.Brightness": "50",
+  "root.ImageSource.I0.Sensor.CaptureMode": "1",
+  "root.ImageSource.I0.Sensor.ColorLevel": "50",
+  "root.ImageSource.I0.Sensor.Contrast": "50",
+  "root.ImageSource.I0.Sensor.CoordX": "5000",
+  "root.ImageSource.I0.Sensor.CoordY": "5000",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.C0.Bottom": "7497",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.C0.Left": "2499",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.C0.Right": "7497",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.C0.Top": "2499",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.C0.WindowType": "disabled",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.NbrOfConfigs": "1",
+  "root.ImageSource.I0.Sensor.CustomExposureWindow.Weight": "100",
+  "root.ImageSource.I0.Sensor.Exposure": "auto",
+  "root.ImageSource.I0.Sensor.ExposurePriority": "50",
+  "root.ImageSource.I0.Sensor.ExposurePriorityLowlight": "100",
+  "root.ImageSource.I0.Sensor.ExposurePriorityNormal": "0",
+  "root.ImageSource.I0.Sensor.ExposureValue": "50",
+  "root.ImageSource.I0.Sensor.ExposureWindow": "auto",
+  "root.ImageSource.I0.Sensor.LowLatencyMode": "off",
+  "root.ImageSource.I0.Sensor.ManualGain": "100",
+  "root.ImageSource.I0.Sensor.ManualGainControl": "no",
+  "root.ImageSource.I0.Sensor.ManualShutter": "33333",
+  "root.ImageSource.I0.Sensor.ManualShutterControl": "no",
+  "root.ImageSource.I0.Sensor.MaxAutoGainControlLowlight": "100",
+  "root.ImageSource.I0.Sensor.MaxAutoGainControlNormal": "50",
+  "root.ImageSource.I0.Sensor.MaxExposureTime": "-1",
+  "root.ImageSource.I0.Sensor.MaxFastShutter": "1000",
+  "root.ImageSource.I0.Sensor.MaxGain": "100",
+  "root.ImageSource.I0.Sensor.MaxSlowShutter": "166667",
+  "root.ImageSource.I0.Sensor.MinExposureTime": "1",
+  "root.ImageSource.I0.Sensor.MinGain": "0",
+  "root.ImageSource.I0.Sensor.MotionAdaptiveExposure": "off",
+  "root.ImageSource.I0.Sensor.RedBalance": "50",
+  "root.ImageSource.I0.Sensor.Sharpness": "50",
+  "root.ImageSource.I0.Sensor.WDR": "on",
+  "root.ImageSource.I0.Sensor.WhiteBalance": "auto",
+  "root.ImageSource.I0.SourceRotation": "yes",
+  "root.ImageSource.NbrOfSources": "1",
+  "root.Input.NbrOfInputs": "0",
+  "root.Layout.AACInstallationEnabled": "yes",
+  "root.Layout.DefaultJoystickMode": "no",
+  "root.Layout.DefaultStreamProfile": "",
+  "root.Layout.DefaultVideoFormat": "mjpeg",
+  "root.Layout.EnableBasicSetup": "yes",
+  "root.Layout.H264InstallationEnabled": "yes",
+  "root.Layout.LiveViewVideo": "1",
+  "root.Layout.PlainConfigEnabled": "no",
+  "root.Layout.ShowRelCrossEnabled": "yes",
+  "root.Layout.ShowVideoFormatDropDown": "yes",
+  "root.Layout.ViewerIE": "activex",
+  "root.Layout.ViewerOther": "spush",
+  "root.Mechanics.Focus.MoveCount": "1221",
+  "root.Mechanics.Focus.StepCount": "36878",
+  "root.Mechanics.Focus.ThresholdStepCount": "600000000",
+  "root.Mechanics.Zoom.MoveCount": "20",
+  "root.Mechanics.Zoom.StepCount": "20441",
+  "root.Mechanics.Zoom.ThresholdStepCount": "600000000",
+  "root.MediaClip.M9.Location": "/etc/audioclips/camera_clicks16k.au",
+  "root.MediaClip.M9.Name": "Camera clicks",
+  "root.MediaClip.M9.Type": "audio",
+  "root.MediaClip.MaxGroups": "10",
+  "root.MediaClip.MaxUploadSize": "10",
+  "root.Network.Bonjour.Enabled": "no",
+  "root.Network.Bonjour.FriendlyName": "AXIS M4216-LV - ACCC8E000012",
+  "root.Network.BootProto": "none",
+  "root.Network.Broadcast": "192.0.2.101",
+  "root.Network.DHCP.VendorClass": "AXIS,Network Camera,M4216-LV,10.12.252",
+  "root.Network.DNSServer1": "192.0.2.102",
+  "root.Network.DNSServer2": "0.0.0.0",
+  "root.Network.DNSUpdate.DNSName": "",
+  "root.Network.DNSUpdate.Enabled": "no",
+  "root.Network.DNSUpdate.TTL": "30",
+  "root.Network.DefaultRouter": "192.0.2.103",
+  "root.Network.DomainName": "",
+  "root.Network.Enabled": "yes",
+  "root.Network.HTTP.AuthenticationPolicy": "basic_digest",
+  "root.Network.HTTP.AuthenticationWithQop": "no",
+  "root.Network.HostName": "axis-accc8e000012",
+  "root.Network.IPAddress": "192.0.2.12",
+  "root.Network.IPv6.AcceptRA": "yes",
+  "root.Network.IPv6.DHCPv6": "auto",
+  "root.Network.IPv6.DefaultRouter": "",
+  "root.Network.IPv6.Enabled": "yes",
+  "root.Network.IPv6.IPAddress": "",
+  "root.Network.Interface.I0.Link.MTU": "1500",
+  "root.Network.Interface.I0.SystemDevice": "eth0",
+  "root.Network.Interface.I0.dot1x.EAP.MultiAuthEnabled": "no",
+  "root.Network.Interface.I0.dot1x.EAPOLVersion": "3",
+  "root.Network.Interface.I0.dot1x.EAPTLS.Identity": "axis-accc8e000012",
+  "root.Network.Interface.I0.dot1x.EAPTLS.PrivateKeyPassword": "***",
+  "root.Network.Interface.I0.dot1x.Enabled": "yes",
+  "root.Network.Interface.I0.dot1x.Status": "Unauthorized",
+  "root.Network.LLDP.POE.Enabled": "no",
+  "root.Network.LLDP.POE.MaxPower": "9700",
+  "root.Network.LLDP.POE.PoeClass": "3",
+  "root.Network.Media": "auto",
+  "root.Network.QoS.Class1.DSCP": "0",
+  "root.Network.QoS.Class1.Desc": "AxisLiveVideo",
+  "root.Network.QoS.Class2.DSCP": "0",
+  "root.Network.QoS.Class2.Desc": "AxisLiveAudio",
+  "root.Network.QoS.Class3.DSCP": "0",
+  "root.Network.QoS.Class3.Desc": "AxisManagement",
+  "root.Network.QoS.Class4.DSCP": "0",
+  "root.Network.QoS.Class4.Desc": "AxisRemoteService",
+  "root.Network.QoS.Class5.DSCP": "0",
+  "root.Network.QoS.Class5.Desc": "AxisMetaData",
+  "root.Network.RTP.AudioDSCP": "0",
+  "root.Network.RTP.EndPort": "50999",
+  "root.Network.RTP.InternallyTaggedMulticastEnabled": "no",
+  "root.Network.RTP.MetadataDSCP": "0",
+  "root.Network.RTP.NbrOfRTPGroups": "2",
+  "root.Network.RTP.OnvifReplayExt": "no",
+  "root.Network.RTP.R0.AlwaysMulticastAudio": "no",
+  "root.Network.RTP.R0.AlwaysMulticastProfile": "videocodec=h264",
+  "root.Network.RTP.R0.AlwaysMulticastVideo": "no",
+  "root.Network.RTP.R0.AudioAddress": "239.194.84.14",
+  "root.Network.RTP.R0.AudioPort": "0",
+  "root.Network.RTP.R0.TTL": "5",
+  "root.Network.RTP.R0.VideoAddress": "239.194.84.142",
+  "root.Network.RTP.R0.VideoPort": "0",
+  "root.Network.RTP.R1.AlwaysMulticastAudio": "no",
+  "root.Network.RTP.R1.AlwaysMulticastProfile": "videocodec=h264",
+  "root.Network.RTP.R1.AlwaysMulticastVideo": "no",
+  "root.Network.RTP.R1.AudioAddress": "239.224.84.14",
+  "root.Network.RTP.R1.AudioPort": "0",
+  "root.Network.RTP.R1.TTL": "5",
+  "root.Network.RTP.R1.VideoAddress": "239.224.84.142",
+  "root.Network.RTP.R1.VideoPort": "0",
+  "root.Network.RTP.StartPort": "50000",
+  "root.Network.RTP.VideoDSCP": "0",
+  "root.Network.RTSP.AllowClientTransportSettings": "no",
+  "root.Network.RTSP.AuthenticateOverHTTP": "no",
+  "root.Network.RTSP.AuthenticateRTSPOverHTTP": "yes",
+  "root.Network.RTSP.Enabled": "yes",
+  "root.Network.RTSP.Port": "554",
+  "root.Network.RTSP.ProtViewer": "password",
+  "root.Network.RTSP.Timeout": "60",
+  "root.Network.RTSPS.AllowClientTransportSettings": "no",
+  "root.Network.RTSPS.CertificateId": "Axis device ID ECC-P256 (802.1AR)",
+  "root.Network.RTSPS.Ciphers": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305",
+  "root.Network.RTSPS.Enabled": "no",
+  "root.Network.RTSPS.Port": "322",
+  "root.Network.RTSPS.Timeout": "60",
+  "root.Network.Resolver.NameServer1": "192.0.2.102",
+  "root.Network.Resolver.NameServer2": "",
+  "root.Network.Resolver.NameServerList": "192.0.2.102",
+  "root.Network.Resolver.ObtainFromDHCP": "no",
+  "root.Network.Resolver.Search": "",
+  "root.Network.Routing.DefaultRouter": "192.0.2.103",
+  "root.Network.Routing.IPv6.DefaultRouter": "",
+  "root.Network.SSH.Enabled": "no",
+  "root.Network.SubnetMask": "255.255.255.0",
+  "root.Network.UPnP.Enabled": "no",
+  "root.Network.UPnP.FriendlyName": "AXIS M4216-LV - ACCC8E000012",
+  "root.Network.VolatileHostName.HostName": "axis-accc8e000012",
+  "root.Network.VolatileHostName.ObtainFromDHCP": "no",
+  "root.Network.ZeroConf.Enabled": "yes",
+  "root.Network.ZeroConf.Fallback": "no",
+  "root.Network.ZeroConf.IPAddress": "192.0.2.104",
+  "root.Network.ZeroConf.SubnetMask": "255.255.0.0",
+  "root.Network.eth0.Broadcast": "192.0.2.101",
+  "root.Network.eth0.IPAddress": "192.0.2.12",
+  "root.Network.eth0.IPv6.IPAddresses": "fe80::baa4:4fff:feb6:548e",
+  "root.Network.eth0.MACAddress": "AC:CC:8E:00:00:12",
+  "root.Network.eth0.SubnetMask": "255.255.255.0",
+  "root.Network.tcpECN": "1",
+  "root.Output.NbrOfOutputs": "0",
+  "root.PTZ.BoaProtPTZOperator": "password",
+  "root.PTZ.CamPorts.Cam1Port": "1",
+  "root.PTZ.CamPorts.Cam2Port": "2",
+  "root.PTZ.CameraDefault": "1",
+  "root.PTZ.ImageSource.I0.PTZEnabled": "false",
+  "root.PTZ.Limit.L1.MaxFieldAngle": "100",
+  "root.PTZ.Limit.L1.MaxPan": "155",
+  "root.PTZ.Limit.L1.MaxTilt": "155",
+  "root.PTZ.Limit.L1.MaxZoom": "9999",
+  "root.PTZ.Limit.L1.MinFieldAngle": "1",
+  "root.PTZ.Limit.L1.MinPan": "-155",
+  "root.PTZ.Limit.L1.MinTilt": "-155",
+  "root.PTZ.Limit.L1.MinZoom": "1",
+  "root.PTZ.Limit.L2.MaxFieldAngle": "100",
+  "root.PTZ.Limit.L2.MaxPan": "155",
+  "root.PTZ.Limit.L2.MaxTilt": "155",
+  "root.PTZ.Limit.L2.MaxZoom": "9999",
+  "root.PTZ.Limit.L2.MinFieldAngle": "1",
+  "root.PTZ.Limit.L2.MinPan": "-155",
+  "root.PTZ.Limit.L2.MinTilt": "-155",
+  "root.PTZ.Limit.L2.MinZoom": "1",
+  "root.PTZ.NbrOfCameras": "2",
+  "root.PTZ.NbrOfSerPorts": "0",
+  "root.PTZ.PTZDriverStatuses.Driver1Status": "3",
+  "root.PTZ.PTZDriverStatuses.Driver2Status": "3",
+  "root.PTZ.Preset.P0.HomePosition": "1",
+  "root.PTZ.Preset.P0.ImageSource": "0",
+  "root.PTZ.Preset.P0.Name": "",
+  "root.PTZ.Preset.P0.Position.P1.Data": "pan=0.000000:tilt=0.000000:zoom=1.000000",
+  "root.PTZ.Preset.P0.Position.P1.Name": "Home",
+  "root.PTZ.Preset.P1.HomePosition": "1",
+  "root.PTZ.Preset.P1.ImageSource": "1",
+  "root.PTZ.Preset.P1.Name": "",
+  "root.PTZ.Preset.P1.Position.P1.Data": "pan=0.000000:tilt=0.000000:zoom=1.000000",
+  "root.PTZ.Preset.P1.Position.P1.Name": "Home",
+  "root.PTZ.PresetNameMaxLen": "95",
+  "root.PTZ.ResponseEncoding": "iso-8859-1",
+  "root.PTZ.Support.S1.AbsoluteBrightness": "false",
+  "root.PTZ.Support.S1.AbsoluteFocus": "false",
+  "root.PTZ.Support.S1.AbsoluteIris": "false",
+  "root.PTZ.Support.S1.AbsolutePan": "true",
+  "root.PTZ.Support.S1.AbsoluteTilt": "true",
+  "root.PTZ.Support.S1.AbsoluteZoom": "true",
+  "root.PTZ.Support.S1.ActionNotification": "true",
+  "root.PTZ.Support.S1.AreaZoom": "true",
+  "root.PTZ.Support.S1.AutoFocus": "false",
+  "root.PTZ.Support.S1.AutoIrCutFilter": "false",
+  "root.PTZ.Support.S1.AutoIris": "false",
+  "root.PTZ.Support.S1.Auxiliary": "false",
+  "root.PTZ.Support.S1.BackLight": "false",
+  "root.PTZ.Support.S1.ContinuousBrightness": "false",
+  "root.PTZ.Support.S1.ContinuousFocus": "false",
+  "root.PTZ.Support.S1.ContinuousIris": "false",
+  "root.PTZ.Support.S1.ContinuousPan": "true",
+  "root.PTZ.Support.S1.ContinuousTilt": "true",
+  "root.PTZ.Support.S1.ContinuousZoom": "true",
+  "root.PTZ.Support.S1.DevicePreset": "false",
+  "root.PTZ.Support.S1.DigitalZoom": "false",
+  "root.PTZ.Support.S1.GenericHTTP": "false",
+  "root.PTZ.Support.S1.IrCutFilter": "false",
+  "root.PTZ.Support.S1.JoyStickEmulation": "true",
+  "root.PTZ.Support.S1.LensOffset": "false",
+  "root.PTZ.Support.S1.OSDMenu": "false",
+  "root.PTZ.Support.S1.ProportionalSpeed": "true",
+  "root.PTZ.Support.S1.RelativeBrightness": "false",
+  "root.PTZ.Support.S1.RelativeFocus": "false",
+  "root.PTZ.Support.S1.RelativeIris": "false",
+  "root.PTZ.Support.S1.RelativePan": "true",
+  "root.PTZ.Support.S1.RelativeTilt": "true",
+  "root.PTZ.Support.S1.RelativeZoom": "true",
+  "root.PTZ.Support.S1.ServerPreset": "true",
+  "root.PTZ.Support.S1.SpeedCtl": "true",
+  "root.PTZ.Support.S2.AbsoluteBrightness": "false",
+  "root.PTZ.Support.S2.AbsoluteFocus": "false",
+  "root.PTZ.Support.S2.AbsoluteIris": "false",
+  "root.PTZ.Support.S2.AbsolutePan": "true",
+  "root.PTZ.Support.S2.AbsoluteTilt": "true",
+  "root.PTZ.Support.S2.AbsoluteZoom": "true",
+  "root.PTZ.Support.S2.ActionNotification": "true",
+  "root.PTZ.Support.S2.AreaZoom": "true",
+  "root.PTZ.Support.S2.AutoFocus": "false",
+  "root.PTZ.Support.S2.AutoIrCutFilter": "false",
+  "root.PTZ.Support.S2.AutoIris": "false",
+  "root.PTZ.Support.S2.Auxiliary": "false",
+  "root.PTZ.Support.S2.BackLight": "false",
+  "root.PTZ.Support.S2.ContinuousBrightness": "false",
+  "root.PTZ.Support.S2.ContinuousFocus": "false",
+  "root.PTZ.Support.S2.ContinuousIris": "false",
+  "root.PTZ.Support.S2.ContinuousPan": "true",
+  "root.PTZ.Support.S2.ContinuousTilt": "true",
+  "root.PTZ.Support.S2.ContinuousZoom": "true",
+  "root.PTZ.Support.S2.DevicePreset": "false",
+  "root.PTZ.Support.S2.DigitalZoom": "false",
+  "root.PTZ.Support.S2.GenericHTTP": "false",
+  "root.PTZ.Support.S2.IrCutFilter": "false",
+  "root.PTZ.Support.S2.JoyStickEmulation": "true",
+  "root.PTZ.Support.S2.LensOffset": "false",
+  "root.PTZ.Support.S2.OSDMenu": "false",
+  "root.PTZ.Support.S2.ProportionalSpeed": "true",
+  "root.PTZ.Support.S2.RelativeBrightness": "false",
+  "root.PTZ.Support.S2.RelativeFocus": "false",
+  "root.PTZ.Support.S2.RelativeIris": "false",
+  "root.PTZ.Support.S2.RelativePan": "true",
+  "root.PTZ.Support.S2.RelativeTilt": "true",
+  "root.PTZ.Support.S2.RelativeZoom": "true",
+  "root.PTZ.Support.S2.ServerPreset": "true",
+  "root.PTZ.Support.S2.SpeedCtl": "true",
+  "root.PTZ.UserAdv.U1.MoveSpeed": "100",
+  "root.PTZ.UserAdv.U2.MoveSpeed": "100",
+  "root.PTZ.UserCtlQueue.U0.Priority": "10",
+  "root.PTZ.UserCtlQueue.U0.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U0.TimeoutType": "activity",
+  "root.PTZ.UserCtlQueue.U0.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U0.UserGroup": "Administrator",
+  "root.PTZ.UserCtlQueue.U1.Priority": "30",
+  "root.PTZ.UserCtlQueue.U1.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U1.TimeoutType": "activity",
+  "root.PTZ.UserCtlQueue.U1.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U1.UserGroup": "Operator",
+  "root.PTZ.UserCtlQueue.U2.Priority": "50",
+  "root.PTZ.UserCtlQueue.U2.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U2.TimeoutType": "timespan",
+  "root.PTZ.UserCtlQueue.U2.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U2.UserGroup": "Viewer",
+  "root.PTZ.UserCtlQueue.U3.Priority": "20",
+  "root.PTZ.UserCtlQueue.U3.TimeoutTime": "20",
+  "root.PTZ.UserCtlQueue.U3.TimeoutType": "activity",
+  "root.PTZ.UserCtlQueue.U3.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U3.UserGroup": "Event",
+  "root.PTZ.UserCtlQueue.U4.Priority": "40",
+  "root.PTZ.UserCtlQueue.U4.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U4.TimeoutType": "infinity",
+  "root.PTZ.UserCtlQueue.U4.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U4.UserGroup": "Guardtour",
+  "root.PTZ.UserCtlQueue.U5.Priority": "35",
+  "root.PTZ.UserCtlQueue.U5.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U5.TimeoutType": "infinity",
+  "root.PTZ.UserCtlQueue.U5.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U5.UserGroup": "Autotracking",
+  "root.PTZ.UserCtlQueue.U6.Priority": "1",
+  "root.PTZ.UserCtlQueue.U6.TimeoutTime": "60",
+  "root.PTZ.UserCtlQueue.U6.TimeoutType": "activity",
+  "root.PTZ.UserCtlQueue.U6.UseCookie": "no",
+  "root.PTZ.UserCtlQueue.U6.UserGroup": "Onvif",
+  "root.PTZ.Various.V1.CtlQueueLimit": "20",
+  "root.PTZ.Various.V1.CtlQueuePollTime": "20",
+  "root.PTZ.Various.V1.CtlQueueing": "false",
+  "root.PTZ.Various.V1.HomePresetSet": "true",
+  "root.PTZ.Various.V1.Locked": "true",
+  "root.PTZ.Various.V1.MaxProportionalSpeed": "200",
+  "root.PTZ.Various.V1.PanEnabled": "true",
+  "root.PTZ.Various.V1.ProportionalSpeedEnabled": "true",
+  "root.PTZ.Various.V1.ReturnToOverview": "0",
+  "root.PTZ.Various.V1.SpeedCtlEnabled": "true",
+  "root.PTZ.Various.V1.TiltEnabled": "true",
+  "root.PTZ.Various.V1.ZoomEnabled": "true",
+  "root.PTZ.Various.V2.CtlQueueLimit": "20",
+  "root.PTZ.Various.V2.CtlQueuePollTime": "20",
+  "root.PTZ.Various.V2.CtlQueueing": "false",
+  "root.PTZ.Various.V2.HomePresetSet": "true",
+  "root.PTZ.Various.V2.Locked": "true",
+  "root.PTZ.Various.V2.MaxProportionalSpeed": "200",
+  "root.PTZ.Various.V2.PanEnabled": "true",
+  "root.PTZ.Various.V2.ProportionalSpeedEnabled": "true",
+  "root.PTZ.Various.V2.ReturnToOverview": "0",
+  "root.PTZ.Various.V2.SpeedCtlEnabled": "true",
+  "root.PTZ.Various.V2.TiltEnabled": "true",
+  "root.PTZ.Various.V2.ZoomEnabled": "true",
+  "root.Properties.API.Browser.Language": "yes",
+  "root.Properties.API.Browser.RootPwdSetValue": "yes",
+  "root.Properties.API.Browser.UserGroup": "yes",
+  "root.Properties.API.ClientNotes.ClientNotes": "yes",
+  "root.Properties.API.HTTP.AdminPath": "/index.html",
+  "root.Properties.API.HTTP.Version": "3",
+  "root.Properties.API.Metadata.Metadata": "yes",
+  "root.Properties.API.Metadata.Version": "1.0",
+  "root.Properties.API.OnScreenControls.OnScreenControls": "yes",
+  "root.Properties.API.PTZ.Presets.Version": "2.00",
+  "root.Properties.API.RTP.OnvifReplayExt": "yes",
+  "root.Properties.API.RTSP.AdjustableStreamSettings": "",
+  "root.Properties.API.RTSP.RTSPAuth": "yes",
+  "root.Properties.API.RTSP.Version": "2.01",
+  "root.Properties.API.SIP.SIP": "yes",
+  "root.Properties.API.SIP.Version": "2.2",
+  "root.Properties.API.WebService.EntryService": "yes",
+  "root.Properties.API.WebService.ONVIF.ONVIF": "yes",
+  "root.Properties.API.WebService.ONVIF.Version": "23.06",
+  "root.Properties.API.WebService.WebService": "yes",
+  "root.Properties.API.WebSocket.RTSP.RTSP": "yes",
+  "root.Properties.AlwaysMulticast.AlwaysMulticast": "yes",
+  "root.Properties.ApiDiscovery.ApiDiscovery": "yes",
+  "root.Properties.Audio.Audio": "no",
+  "root.Properties.Audio.Decoder.Format": "",
+  "root.Properties.Audio.DuplexMode": "",
+  "root.Properties.Audio.Format": "",
+  "root.Properties.Audio.InputType": "",
+  "root.Properties.AudioClip.Format": "au,mp3,opus,vorbis,wav",
+  "root.Properties.AudioClip.PlayOptions": "location,repeat,volume",
+  "root.Properties.AudioClip.StopClip": "yes",
+  "root.Properties.DynamicOverlay.DynamicOverlay": "yes",
+  "root.Properties.DynamicOverlay.Version": "1.8",
+  "root.Properties.EmbeddedDevelopment.CacheSize": "73400320",
+  "root.Properties.EmbeddedDevelopment.DefaultCacheSize": "89128960",
+  "root.Properties.EmbeddedDevelopment.EmbeddedDevelopment": "yes",
+  "root.Properties.EmbeddedDevelopment.RuleEngine.MultiConfiguration": "yes",
+  "root.Properties.EmbeddedDevelopment.Version": "2.18",
+  "root.Properties.Firmware.BuildDate": "Jul 08 2026 12:15",
+  "root.Properties.Firmware.BuildNumber": "1",
+  "root.Properties.Firmware.Version": "12.11.77",
+  "root.Properties.FirmwareManagement.Version": "1.10",
+  "root.Properties.Gatekeeper.Gatekeeper": "no",
+  "root.Properties.Geolocation.Geolocation": "yes",
+  "root.Properties.Geolocation.Version": "1.0",
+  "root.Properties.GuardTour.GuardTour": "yes",
+  "root.Properties.GuardTour.GuardTourChannels": "1,2",
+  "root.Properties.GuardTour.MaxGuardTours": "100",
+  "root.Properties.GuardTour.MinGuardTourWaitTime": "1",
+  "root.Properties.GuardTour.RecordedTour": "no",
+  "root.Properties.HTTPS.HTTPS": "yes",
+  "root.Properties.IO.ManualTriggerNbr": "6",
+  "root.Properties.Image.CodecSpecificResolutions": "yes",
+  "root.Properties.Image.Format": "jpeg,mjpeg,h264,h265",
+  "root.Properties.Image.H264.Profiles": "Main,High",
+  "root.Properties.Image.H265.Profiles": "Main",
+  "root.Properties.Image.I0.H264.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I0.H265.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I0.JPEG.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I0.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I0.ShowSuboptimalResolutions": "false",
+  "root.Properties.Image.I1.H264.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I1.H265.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I1.JPEG.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I1.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.I1.ShowSuboptimalResolutions": "false",
+  "root.Properties.Image.NbrOfViews": "2",
+  "root.Properties.Image.RateControl.ABR.ABR": "yes",
+  "root.Properties.Image.RateControl.Version": "2.1",
+  "root.Properties.Image.Resolution": "2304x1728,1920x1080,1280x960,1280x720,1024x768,800x600,800x448,640x480,320x240",
+  "root.Properties.Image.Rotation": "0,90,180,270",
+  "root.Properties.Image.ShowSuboptimalResolutions": "false",
+  "root.Properties.ImageSource.DCIris": "no",
+  "root.Properties.ImageSource.IrisManager": "no",
+  "root.Properties.ImageSource.OpticsSetup.Calibration": "yes",
+  "root.Properties.ImageSource.OpticsSetup.CamBlockType": "unknown",
+  "root.Properties.ImageSource.OpticsSetup.DayNightSwitch": "no",
+  "root.Properties.ImageSource.OpticsSetup.Focus": "yes",
+  "root.Properties.ImageSource.OpticsSetup.FocusAssistant": "no",
+  "root.Properties.ImageSource.OpticsSetup.NonBlockingCGI": "yes",
+  "root.Properties.ImageSource.OpticsSetup.Zoom": "yes",
+  "root.Properties.ImageSource.PositionableIris": "no",
+  "root.Properties.LEDControl.LEDControl": "yes",
+  "root.Properties.LightControl.LightControl2": "yes",
+  "root.Properties.LightControl.LightControlAvailable": "yes",
+  "root.Properties.LocalStorage.AutoRepair": "yes",
+  "root.Properties.LocalStorage.ContinuousRecording": "yes",
+  "root.Properties.LocalStorage.DiskEncryption": "yes",
+  "root.Properties.LocalStorage.DiskHealth": "yes",
+  "root.Properties.LocalStorage.ExportRecording": "yes",
+  "root.Properties.LocalStorage.FailOverRecording": "yes",
+  "root.Properties.LocalStorage.LocalStorage": "yes",
+  "root.Properties.LocalStorage.NbrOfContinuousRecordingProfiles": "1",
+  "root.Properties.LocalStorage.RequiredFileSystem": "yes",
+  "root.Properties.LocalStorage.SDCard": "yes",
+  "root.Properties.LocalStorage.StorageLimit": "yes",
+  "root.Properties.LocalStorage.Version": "1.00",
+  "root.Properties.NetworkShare.CIFS": "yes",
+  "root.Properties.NetworkShare.IPV6": "yes",
+  "root.Properties.NetworkShare.NameLookup": "yes",
+  "root.Properties.NetworkShare.NetworkShare": "yes",
+  "root.Properties.PTZ.DigitalPTZ": "yes",
+  "root.Properties.PTZ.DriverManagement": "no",
+  "root.Properties.PTZ.DriverManagementChannels": "none",
+  "root.Properties.PTZ.DriverModeList": "none",
+  "root.Properties.PTZ.EmbeddedDrivers": "yes",
+  "root.Properties.PTZ.PTZ": "yes",
+  "root.Properties.PTZ.PTZOnQuadView": "no",
+  "root.Properties.PTZ.SelectableDriverMode": "no",
+  "root.Properties.PackageManager.FormatListing": "yes",
+  "root.Properties.PackageManager.LicenseKeyManagement": "yes",
+  "root.Properties.PackageManager.PackageManager": "yes",
+  "root.Properties.Portcast.Portcast": "yes",
+  "root.Properties.Portcast.Status": "disconnected",
+  "root.Properties.Portcast.Version": "1.0",
+  "root.Properties.PrivacyMask.MainSwitch": "yes",
+  "root.Properties.PrivacyMask.MaxNbrOfCorners": "10",
+  "root.Properties.PrivacyMask.MaxNbrOfPrivacyMasks": "10",
+  "root.Properties.PrivacyMask.Polygon": "yes",
+  "root.Properties.PrivacyMask.PrivacyMask": "yes",
+  "root.Properties.PrivacyMask.Query": "list,position,listpxjson,positionpxjson",
+  "root.Properties.RTC.RTC": "yes",
+  "root.Properties.RemoteService.RemoteService": "no",
+  "root.Properties.SRTP.Acceleration": "none",
+  "root.Properties.SRTP.Authentication": "hmac-sha1",
+  "root.Properties.SRTP.Encryption": "aes-ctr-128,aes-ctr-256,aes-gcm-128,aes-gcm-256",
+  "root.Properties.SRTP.SRTP": "yes",
+  "root.Properties.SRTP.Version": "1.0",
+  "root.Properties.Serial.Serial": "no",
+  "root.Properties.SupervisedIO.SupervisedIO": "yes",
+  "root.Properties.SupervisedIO.Version": "2.0",
+  "root.Properties.System.Architecture": "aarch64",
+  "root.Properties.System.HardwareID": "7EA.2",
+  "root.Properties.System.Language": "",
+  "root.Properties.System.LanguageType": "",
+  "root.Properties.System.SerialNumber": "ACCC8E000012",
+  "root.Properties.System.Soc": "Ambarella CV25",
+  "root.Properties.Tampering.Tampering": "yes",
+  "root.Properties.TemperatureSensor.Fan": "no",
+  "root.Properties.TemperatureSensor.Heater": "no",
+  "root.Properties.TemperatureSensor.TemperatureControl": "yes",
+  "root.Properties.TemperatureSensor.TemperatureSensor": "yes",
+  "root.Properties.VideoOutputControl.OutputType": "HDMI",
+  "root.Properties.VideoOutputControl.VideoOutputControl": "yes",
+  "root.Properties.VirtualInput.VirtualInput": "yes",
+  "root.Properties.ZipStream.ZipStream": "yes",
+  "root.Recording.DefaultDiskId": "SD_DISK",
+  "root.Recording.DefaultSplitDuration": "300",
+  "root.RemoteService.BackOffFactorMin": "2",
+  "root.RemoteService.BackOffFactorSpan": "6",
+  "root.RemoteService.BackOffMaxSec": "20",
+  "root.RemoteService.ClientCert": "",
+  "root.RemoteService.DSCP": "0",
+  "root.RemoteService.Enabled": "no",
+  "root.RemoteService.LogFile": "syslog",
+  "root.RemoteService.ProxyAuth": "basic",
+  "root.RemoteService.ProxyDispatcherOnly": "no",
+  "root.RemoteService.ProxyLogin": "",
+  "root.RemoteService.ProxyPassword": "***",
+  "root.RemoteService.ProxyPort": "3128",
+  "root.RemoteService.ProxyServer": "",
+  "root.RemoteService.ServerList": "dispatchse1-st.axis.com:443,dispatchse1-st.axis.com:80,195.60.68.120:443,195.60.68.120:80,dispatchse2-st.axis.com:443,dispatchse2-st.axis.com:80,195.60.68.121:443,195.60.68.121:80,dispatcher-st.axis.com:443,dispatcher-st.axis.com:80,dispatchus1-st.axis.com:443,dispatchus1-st.axis.com:80,dispatchjp1-st.axis.com:443,dispatchjp1-st.axis.com:80",
+  "root.RemoteService.TimeSyncEnabled": "yes",
+  "root.SNMP.DSCP": "0",
+  "root.SNMP.Enabled": "no",
+  "root.SNMP.EngineBoots": "0",
+  "root.SNMP.InitialUserPasswd": "***",
+  "root.SNMP.InitialUserPasswdSet": "no",
+  "root.SNMP.TransportProtocol": "udp",
+  "root.SNMP.Trap.Enabled": "no",
+  "root.SNMP.Trap.T0.Address": "",
+  "root.SNMP.Trap.T0.AuthFail.Enabled": "no",
+  "root.SNMP.Trap.T0.ColdStart.Enabled": "no",
+  "root.SNMP.Trap.T0.Community": "***",
+  "root.SNMP.Trap.T0.LinkUp.Enabled": "no",
+  "root.SNMP.Trap.T0.WarmStart.Enabled": "no",
+  "root.SNMP.V1": "no",
+  "root.SNMP.V1ReadCommunity": "***",
+  "root.SNMP.V1WriteCommunity": "***",
+  "root.SNMP.V2c": "no",
+  "root.SNMP.V3": "no",
+  "root.StatusLed.FlashInterval": "4",
+  "root.StatusLed.Usage": "on",
+  "root.Storage.MountDir": "/var/spool/storage",
+  "root.Storage.S0.AutoRepair": "yes",
+  "root.Storage.S0.CleanupLevel": "90",
+  "root.Storage.S0.CleanupMaxAge": "7",
+  "root.Storage.S0.CleanupPolicyActive": "fifo",
+  "root.Storage.S0.DeviceNode": "/dev/mmcblk0p1",
+  "root.Storage.S0.DiskID": "SD_DISK",
+  "root.Storage.S0.Enabled": "no",
+  "root.Storage.S0.ExtraMountOptions": "",
+  "root.Storage.S0.FileSystem": "vfat",
+  "root.Storage.S0.FriendlyName": "",
+  "root.Storage.S0.Locked": "no",
+  "root.Storage.S0.MountOnBoot": "yes",
+  "root.Storage.S0.MountPointPermissions": "0770",
+  "root.Storage.S0.RequiredFileSystem": "none",
+  "root.Storage.S1.AutoRepair": "yes",
+  "root.Storage.S1.CleanupLevel": "90",
+  "root.Storage.S1.CleanupMaxAge": "7",
+  "root.Storage.S1.CleanupPolicyActive": "fifo",
+  "root.Storage.S1.DeviceNode": "NetworkShare:",
+  "root.Storage.S1.DiskID": "NetworkShare",
+  "root.Storage.S1.Enabled": "yes",
+  "root.Storage.S1.ExtraMountOptions": "",
+  "root.Storage.S1.FileSystem": "cifs",
+  "root.Storage.S1.FriendlyName": "",
+  "root.Storage.S1.Locked": "no",
+  "root.Storage.S1.MountOnBoot": "yes",
+  "root.Storage.S1.MountPointPermissions": "0770",
+  "root.Storage.S1.RequiredFileSystem": "none",
+  "root.StreamCache.MaxGroups": "20",
+  "root.StreamCache.S0.Enabled": "no",
+  "root.StreamCache.S0.Options": "",
+  "root.StreamCache.S0.RequestedLengthTime": "30",
+  "root.StreamCache.Size": "89128960",
+  "root.StreamProfile.MaxGroups": "26",
+  "root.System.AccessLog": "On",
+  "root.System.AlternateBoaPort": "0",
+  "root.System.BoaDSCP": "0",
+  "root.System.BoaGroupPolicy.admin": "https",
+  "root.System.BoaGroupPolicy.operator": "https",
+  "root.System.BoaGroupPolicy.viewer": "https",
+  "root.System.BoaKeepAliveTimeout": "180",
+  "root.System.BoaPort": "80",
+  "root.System.BoaProtViewer": "password",
+  "root.System.CameraOrientationSet": "no",
+  "root.System.CaptureFrequencySet": "yes",
+  "root.System.CaptureModeSet": "yes",
+  "root.System.HTTP2.AllowH2": "yes",
+  "root.System.HTTP2.AllowH2c": "no",
+  "root.System.HTTPAuthRTSPOverHTTP": "no",
+  "root.System.HTTPServerTokens": "yes",
+  "root.System.HTTPWatchDog": "yes",
+  "root.System.PreventDoSAttack.ActivatePasswordThrottling": "On",
+  "root.System.PreventDoSAttack.DoSBlockingPeriod": "10",
+  "root.System.PreventDoSAttack.DoSPageCount": "20",
+  "root.System.PreventDoSAttack.DoSPageInterval": "1",
+  "root.System.PreventDoSAttack.DoSSiteCount": "20",
+  "root.System.PreventDoSAttack.DoSSiteInterval": "1",
+  "root.System.RootPwdSet": "yes",
+  "root.System.SkipDigestUriValidation": "User-Agent HttpClient",
+  "root.System.WebInterfaceDisabled": "no",
+  "root.Tampering.T0.DarkDetectionEnabled": "yes",
+  "root.Tampering.T0.DarkThreshold": "90",
+  "root.Tampering.T0.MinDuration": "20",
+  "root.Tampering.T0.Sensitivity": "50",
+  "root.TemperatureControl.Sensor.S0.Name": "Front",
+  "root.TemperatureControl.Sensor.S0.TriggerHigh": "75",
+  "root.TemperatureControl.Sensor.S0.TriggerLow": "-10",
+  "root.TemperatureControl.Sensor.S1.Name": "Main",
+  "root.TemperatureControl.Sensor.S1.TriggerHigh": "75",
+  "root.TemperatureControl.Sensor.S1.TriggerLow": "-10",
+  "root.TemperatureControl.Sensor.S2.Name": "IR0",
+  "root.TemperatureControl.Sensor.S2.TriggerHigh": "75",
+  "root.TemperatureControl.Sensor.S2.TriggerLow": "-10",
+  "root.TemperatureControl.Sensor.S3.Name": "IR1",
+  "root.TemperatureControl.Sensor.S3.TriggerHigh": "75",
+  "root.TemperatureControl.Sensor.S3.TriggerLow": "-10",
+  "root.Time.DST.Enabled": "yes",
+  "root.Time.NTP.Server": "192.0.2.102",
+  "root.Time.NTP.VolatileServer": "0.0.0.0",
+  "root.Time.ObtainFromDHCP": "no",
+  "root.Time.POSIXTimeZone": "GMT0BST,M3.5.0/1,M10.5.0",
+  "root.Time.SyncSource": "NTP",
+  "root.WebService.DiscoveryMode.Discoverable": "No",
+  "root.WebService.UsernameToken.ReplayAttackProtection": "yes"
+ },
+ "apis": [
+  {
+   "id": "ssh",
+   "version": "1.0",
+   "name": "SSH",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "recording",
+   "version": "1.0",
+   "name": "Edge Recording",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "feature-flag",
+   "version": "1.0",
+   "name": "Feature Flag API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "ntp",
+   "version": "1.5",
+   "name": "NTP",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "sip",
+   "version": "2.2",
+   "name": "Call service API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "disk-management",
+   "version": "1.0",
+   "name": "Edge storage Disk management",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "customhttpheader",
+   "version": "1.1",
+   "name": "Custom HTTP header",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audio-analytics",
+   "version": "1.0",
+   "name": "Audio Analytics",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "recording-group",
+   "version": "1.0",
+   "name": "Edge Recording group",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "recording-storage-limit",
+   "version": "1.0",
+   "name": "Edge Recording storage limit",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "remoteservice",
+   "version": "1.1",
+   "name": "Remote service",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "io-port-management",
+   "version": "1.1",
+   "name": "IO Port Management",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "systemready",
+   "version": "1.4",
+   "name": "Systemready",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "overlayimage",
+   "version": "1.0",
+   "name": "Overlay image API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "mdnssd",
+   "version": "1.1",
+   "name": "mDNS-SD",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "oak",
+   "version": "1.0",
+   "name": "OAK",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "custom-firmware-certificate",
+   "version": "1.0",
+   "name": "Custom Firmware Certificate",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "time-service",
+   "version": "1.1",
+   "name": "Time API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "onscreencontrols",
+   "version": "1.6",
+   "name": "On-Screen Controls",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "view-area",
+   "version": "1.0",
+   "name": "View Area",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "device-config",
+   "version": "1.0",
+   "name": "Device Config API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "light-control",
+   "version": "1.6",
+   "name": "Light Control",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "device-self-test",
+   "version": "1.0",
+   "name": "Device Self Test",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "remote-syslog",
+   "version": "1.2",
+   "name": "Remote Syslog API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "dynamicoverlay",
+   "version": "1.8",
+   "name": "Dynamic Overlay",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "supervised-io",
+   "version": "2.0",
+   "name": "Supervised IO",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "temperaturecontrol",
+   "version": "1.0",
+   "name": "Temperature Control",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audit-log",
+   "version": "1.0",
+   "name": "Audit Log API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "capture-mode",
+   "version": "1.0",
+   "name": "Capture Mode",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "fwmgr",
+   "version": "1.10",
+   "name": "Firmware Management",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "disk-properties",
+   "version": "1.1",
+   "name": "Edge storage Disk properties",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "recording-export",
+   "version": "1.3",
+   "name": "Export edge recording",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "stream-profiles",
+   "version": "1.0",
+   "name": "Stream Profiles",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "image-size",
+   "version": "1.0",
+   "name": "Image Size",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "media-cgi",
+   "version": "1.0",
+   "name": "Media stream over HTTP",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "event-mqtt-bridge",
+   "version": "1.2",
+   "name": "Event-MQTT Bridge API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audio-device-control",
+   "version": "1.0",
+   "name": "Audio Device Control",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "rtsp-over-websocket",
+   "version": "1.0",
+   "name": "RTSP Streaming over WebSocket",
+   "docLink": "https://www.axis.com/partner_pages/vapix/#/",
+   "status": "official"
+  },
+  {
+   "id": "mediaclip",
+   "version": "1.0",
+   "name": "Mediaclip",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "param-cgi",
+   "version": "1.0",
+   "name": "Legacy Parameter Handling",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "airquality",
+   "version": "1.1",
+   "name": "Air quality",
+   "docLink": "",
+   "status": "beta"
+  },
+  {
+   "id": "streamstatus",
+   "version": "1.0",
+   "name": "Stream Status CGI",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "application",
+   "version": "1.0",
+   "name": "Application",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "disk-network-share",
+   "version": "1.0",
+   "name": "Edge storage Network share",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "user-management",
+   "version": "1.2",
+   "name": "User Management",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "upnp",
+   "version": "1.1",
+   "name": "UPnP",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "analytics-metadata-config",
+   "version": "1.0",
+   "name": "Analytics Metadata Producer Configuration API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audio-streaming-capabilities",
+   "version": "1.0",
+   "name": "Audio Streaming Capabilities",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "api-discovery",
+   "version": "1.1",
+   "name": "API Discovery Service",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "power-settings",
+   "version": "1.8",
+   "name": "Power Settings",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "signed-video",
+   "version": "1.0",
+   "name": "Signed Video",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "mqtt-client",
+   "version": "1.6",
+   "name": "MQTT Client API",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "guard-tour",
+   "version": "1.1",
+   "name": "Guard Tour",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "event-streaming-over-websocket",
+   "version": "1.0",
+   "name": "Event Streaming over WebSocket",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audio-device-control",
+   "version": "2.0",
+   "name": "Audio Device Control",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "network-speaker-pairing",
+   "version": "1.4",
+   "name": "Network Speaker Pairing",
+   "docLink": "",
+   "status": "deprecated"
+  },
+  {
+   "id": "network-settings",
+   "version": "1.37",
+   "name": "Network Settings",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "audio-mixer",
+   "version": "1.0",
+   "name": "Audio Mixer",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "privacy-mask",
+   "version": "2.4",
+   "name": "Privacy Masking",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "packagemanager",
+   "version": "1.4",
+   "name": "Package Manager",
+   "docLink": ""
+  },
+  {
+   "id": "privacy-mask",
+   "version": "3.0",
+   "name": "Privacy Masking",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "ptz-control",
+   "version": "2.1",
+   "name": "PTZ Control",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "zipstream",
+   "version": "1.0",
+   "name": "ZipStream",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "basic-device-info",
+   "version": "1.3",
+   "name": "Basic Device Information",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "shuttergain-cgi",
+   "version": "2.0",
+   "name": "Shuttergain CGI",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  },
+  {
+   "id": "datahub-streaming-over-websocket",
+   "version": "1.0",
+   "name": "Datahub Streaming over WebSocket",
+   "docLink": "https://www.axis.com/partner_pages/vapix_library/#/",
+   "status": "official"
+  }
+ ],
+ "probes": {
+  "GET /axis-cgi/applications/config.cgi?action=get&name=AllowRoot": {
+   "status": 400,
+   "text": "400 Bad Request\r\n\r\nMalformed request: valid name required\r\n"
+  },
+  "GET /axis-cgi/applications/config.cgi?action=get&name=AllowUnsigned": {
+   "status": 200,
+   "text": "<reply result=\"ok\">\r\n\t<param name=\"AllowUnsigned\" value=\"false\"/>\r\n</reply>\r\n"
+  },
+  "GET /config/rest/basic-device-info/v2beta/allowAnonymous": {
+   "status": 200,
+   "text": "{\n  \"status\": \"success\",\n  \"data\": true\n}"
+  },
+  "HTTP80 /": {
+   "status": null,
+   "error": "UNREACHABLE"
+  },
+  "TLS cert": {
+   "subject": {
+    "countryName": "SE",
+    "localityName": "Lund",
+    "organizationName": "Axis Communications AB",
+    "commonName": "axis-accc8e000012-eccp256-1",
+    "serialNumber": "accc8e000012"
+   },
+   "issuer": {
+    "organizationName": "Axis Communications AB",
+    "commonName": "Axis device ID Intermediate CA ECC 2"
+   },
+   "notAfter": "Dec 31 23:59:59 9999 GMT",
+   "tls_version": "TLSv1.3"
+  },
+  "POST /axis-cgi/remotesyslog.cgi status": {
+   "status": 200,
+   "text": "{\n  \"apiVersion\": \"1.2\",\n  \"method\": \"status\",\n  \"data\": {\n    \"enabled\": false,\n    \"servers\": []\n  }\n}"
+  },
+  "GET /axis-cgi/disks/list.cgi?diskid=all": {
+   "status": 200,
+   "text": "<?xml version=\"1.0\"?>\n<root xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://www.axis.com/vapix/http_cgi/disk/list1.xsd\">\n<disks numberofdisks=\"2\" >  <disk diskid=\"NetworkShare\" name=\"\" totalsize=\"0\" freesize=\"0\" cleanuplevel=\"90\" cleanupmaxage=\"7\" cleanuppolicy=\"fifo\" locked=\"no\" full=\"no\" readonly=\"no\" status=\"disconnected\" filesystem=\"cifs\" group=\"S1\" requiredfilesystem=\"none\" encryptionenabled=\"false\" diskencrypted=\"false\"/>\n  <disk diskid=\"SD_DISK\" name=\"\" totalsize=\"0\" freesize=\"0\" cleanuplevel=\"90\" cleanupmaxage=\"7\" cleanuppolicy=\"fifo\" locked=\"no\" full=\"no\" readonly=\"no\" status=\"disconnected\" filesystem=\"vfat\" group=\"S0\" requiredfilesystem=\"none\" encryptionenabled=\"false\" diskencrypted=\"false\"/>\n</disks> </root>\n"
+  },
+  "GET /axis-cgi/applications/list.cgi": {
+   "status": 200,
+   "text": "<reply result=\"ok\">\r\n <application Name=\"objectanalytics\" ApplicationID=\"412806\" NiceName=\"AXIS Object Analytics\" Vendor=\"Axis Communications\" Version=\"1.26.205\" Bundled=\"Yes\" Status=\"Stopped\" License=\"None\" ConfigurationPage=\"local/objectanalytics/index.html\" VendorHomePage=\"http://www.axis.com\" SignatureStatus=\"Signed\" LicenseName=\"available\"><Resources><Resource name=\"DeepLearningProcessor\" used=\"No\" /></Resources><CompatibleOsVersions><VersionRange><Min>12</Min><Max>12</Max></VersionRange></CompatibleOsVersions></application>\r\n <application Name=\"vmd\" ApplicationID=\"143440\" NiceName=\"AXIS Video Motion Detection\" Vendor=\"Axis Communications\" Version=\"4.5.70\" Bundled=\"Yes\" Status=\"Stopped\" License=\"None\" ConfigurationPage=\"local/vmd/config.html\" VendorHomePage=\"http://www.axis.com\" SignatureStatus=\"Signed\" LicenseName=\"available\"><Resources><Resource name=\"DeepLearningProcessor\" used=\"No\" /></Resources><CompatibleOsVersions><VersionRange><Min>12.10</Min><Max>13</Max></VersionRange></CompatibleOsVersions></application>\r\n</reply>\r\n"
+  },
+  "GET /axis-cgi/pwdgrp.cgi?action=get": {
+   "status": 200,
+   "text": "admin=\"root\"\r\noperator=\"root\"\r\nviewer=\"root\"\r\nptz=\"root\"\r\ndigusers=\"root\"\r\n"
+  },
+  "POST /axis-cgi/network_settings.cgi getSupportedVersions": {
+   "status": 200,
+   "text": "{\n  \"apiVersion\": \"1.38\",\n  \"method\": \"getSupportedVersions\",\n  \"data\": {\n    \"apiVersions\": [\n      \"1.38\"\n    ]\n  }\n}"
+  },
+  "POST /axis-cgi/network_settings.cgi getNetworkInfo": {
+   "status": 200,
+   "text": "{\n  \"apiVersion\": \"1.38\",\n  \"method\": \"getNetworkInfo\",\n  \"data\": {\n    \"system\": {\n      \"tcpEcnMode\": \"acceptAndInitiate\",\n      \"maxSupportedVlans\": 5,\n      \"deviceSwitching\": {\n        \"mode\": \"auto\",\n        \"manualActiveDevices\": [\n          \"eth0\"\n        ],\n        \"devices\": [\n          \"eth0\"\n        ],\n        \"activeDevices\": [\n          \"eth0\"\n        ]\n      },\n      \"hostname\": {\n        \"useDhcpHostname\": false,\n        \"hostname\": \"axis-accc8e000012\",\n        \"staticHostname\": \"axis-accc8e000012\"\n      },\n      \"resolver\": {\n        \"useDhcpResolverInfo\": false,\n        \"nameServers\": [\n          \"192.0.2.102\"\n        ],\n        \"staticNameServers\": [\n          \"192.0.2.102\"\n        ],\n        \"maxSupportedStaticNameServers\": 3,\n        \"searchDomains\": [],\n        \"staticSearchDomains\": [],\n        \"maxSupportedStaticSearchDomains\": 6,\n        \"domainName\": \"\",\n        \"staticDomainName\": \"\"\n      },\n      \"globalProxies\": {\n        \"httpProxy\": \"\",\n        \"httpsProxy\": \"\",\n        \"noProxy\": \"\"\n      }\n    },\n    \"devices\": [\n      {\n        \"name\": \"eth0\",\n        \"type\": \"wired\",\n        \"macAddress\": \"ac:cc:8e:00:00:12\",\n        \"partOfBridge\": \"\",\n        \"link\": true,\n        \"state\": \"up\",\n        \"staticState\": \"up\",\n        \"wired\": {\n          \"linkMode\": \"auto\",\n          \"supportedLinkModes\": [\n            \"auto\",\n            \"10BaseT-HD\",\n            \"10BaseT-FD\",\n            \"100BaseTX-HD\",\n            \"100BaseTX-FD\"\n          ],\n          \"isDownlink\": false,\n          \"8021X\": {\n            \"enabled\": true,\n            \"status\": \"Connecting\",\n            \"mode\": \"WPA-Enterprise-EAPTLS\",\n            \"configurations\": [\n              {\n                \"mode\": \"WPA-Enterprise-PEAP-MSCHAPv2\",\n                \"params\": {\n                  \"identity\": \"\",\n                  \"is_password_set\": false,\n                  \"eapolVersion\": \"EAPoLv3\",\n                  \"peapVersion\": \"PEAPv1\",\n                  \"label\": 1,\n                  \"certClient\": \"\",\n                  \"certsCA\": []\n                }\n              },\n              {\n                \"mode\": \"WPA-Enterprise-EAPTLS\",\n                \"params\": {\n                  \"identity\": \"axis-accc8e000012\",\n                  \"eapolVersion\": \"EAPoLv3\",\n                  \"certClient\": \"Axis device ID RSA-2048 (802.1AR)\",\n                  \"certsCA\": []\n                }\n              },\n              {\n                \"mode\": \"MACsec-PSK\",\n                \"params\": {\n                  \"is_mka_cak_set\": false,\n                  \"mkaCkn\": \"\"\n                }\n              }\n            ],\n            \"supportedModes\": [\n              \"WPA-Enterprise-PEAP-MSCHAPv2\",\n              \"WPA-Enterprise-EAPTLS\",\n              \"MACsec-PSK\"\n            ],\n            \"MACsecSecured\": false\n          }\n        },\n        \"IPv4\": {\n          \"enabled\": true,\n          \"configurationMode\": \"static\",\n          \"linkLocalMode\": \"on\",\n          \"addresses\": [\n            {\n              \"address\": \"192.0.2.104\",\n              \"prefixLength\": 16,\n              \"origin\": \"linkLocal\",\n              \"scope\": \"link\"\n            },\n            {\n              \"address\": \"192.0.2.12\",\n              \"prefixLength\": 24,\n              \"origin\": \"static\",\n              \"scope\": \"global\",\n              \"broadcast\": \"192.0.2.101\"\n            }\n          ],\n          \"maxSupportedStaticAddressConfigurations\": 1,\n          \"staticAddressConfigurations\": [\n            {\n              \"address\": \"192.0.2.12\",\n              \"prefixLength\": 24,\n              \"broadcast\": \"192.0.2.101\"\n            }\n          ],\n          \"defaultRouter\": \"192.0.2.103\",\n          \"staticDefaultRouter\": \"192.0.2.103\",\n          \"useStaticDHCPFallback\": true,\n          \"useDHCPStaticRoutes\": false\n        },\n        \"IPv6\": {\n          \"enabled\": true,\n          \"addresses\": [\n            {\n              \"address\": \"fe80::baa4:4fff:feb6:548e\",\n              \"prefixLength\": 64,\n              \"origin\": \"linkLocal\",\n              \"scope\": \"link\"\n            }\n          ]\n        }\n      }\n    ]\n  }\n}"
+  },
+  "GET /config/rest/lldp/v1": {
+   "status": 200,
+   "text": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"activated\": true,\n    \"neighbors\": []\n  }\n}"
+  },
+  "GET /config/rest/firewall/v1": {
+   "status": 200,
+   "text": "{\n  \"status\": \"success\",\n  \"data\": {\n    \"activated\": false,\n    \"conf\": {\n      \"rules\": {\n        \"activeDefaultPolicy\": \"DROP\",\n        \"activeRules\": [],\n        \"pendingDefaultPolicy\": null,\n        \"pendingRules\": [],\n        \"testTimeLeft\": 0\n      }\n    }\n  }\n}"
+  }
+ },
+ "auth_scheme": "digest",
+ "results": [
+  {
+   "id": "AX-B-001",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Network.Bonjour.Enabled": "no"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-002",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Network.UPnP.Enabled": "no",
+    "root.Network.UPnP.NATTraversal.Enabled": null
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-003",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.WebService.DiscoveryMode.Discoverable": "No"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-004",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.RemoteService.Enabled": "no"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-005",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Network.SSH.Enabled": "no"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-006",
+   "status": "NOT_SUPPORTED",
+   "observed": {
+    "root.Network.FTP.Enabled": null
+   },
+   "detail": "Feature removed in AXIS OS 11.1; compliant by design."
+  },
+  {
+   "id": "AX-B-008",
+   "status": "INFO",
+   "observed": {
+    "root.Network.ZeroConf.Enabled": "yes"
+   },
+   "detail": "Advisory from AXIS OS 12.1: root.Network.ZeroConf.Enabled='yes' (want no)"
+  },
+  {
+   "id": "AX-B-009",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.System.BoaGroupPolicy.admin": "https",
+    "root.System.BoaGroupPolicy.operator": "https",
+    "root.System.BoaGroupPolicy.viewer": "https"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-010",
+   "status": "NOT_SUPPORTED",
+   "observed": {
+    "root.HTTPS.AllowTLS1": null
+   },
+   "detail": "Feature removed in AXIS OS 12.0; compliant by design."
+  },
+  {
+   "id": "AX-B-011",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.HTTPS.Ciphers": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-012",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.System.PreventDoSAttack.ActivatePasswordThrottling": "On",
+    "root.System.PreventDoSAttack.DoSBlockingPeriod": "10",
+    "root.System.PreventDoSAttack.DoSPageCount": "20",
+    "root.System.PreventDoSAttack.DoSPageInterval": "1",
+    "root.System.PreventDoSAttack.DoSSiteCount": "20",
+    "root.System.PreventDoSAttack.DoSSiteInterval": "1"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-013",
+   "status": "NOT_SUPPORTED",
+   "observed": {
+    "root.System.EditCgi": null
+   },
+   "detail": "Feature removed in AXIS OS 10.11; compliant by design."
+  },
+  {
+   "id": "AX-B-014",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.System.AccessLog": "On"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-015",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.WebService.UsernameToken.ReplayAttackProtection": "yes"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-016",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "root.System.WebInterfaceDisabled": "no"
+   },
+   "detail": "root.System.WebInterfaceDisabled='no' (want yes)"
+  },
+  {
+   "id": "AX-B-017",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "root.System.HTTPServerTokens": "yes"
+   },
+   "detail": "root.System.HTTPServerTokens='yes' (want no)"
+  },
+  {
+   "id": "AX-B-018",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Network.RTSP.ProtViewer": "password",
+    "root.System.BoaProtViewer": "password",
+    "root.PTZ.BoaProtPTZOperator": "password"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-019",
+   "status": "ERROR",
+   "observed": {
+    "AllowRoot": null
+   },
+   "detail": "HTTP 400"
+  },
+  {
+   "id": "AX-B-020",
+   "status": "COMPLIANT",
+   "observed": {
+    "AllowUnsigned": "false"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-021",
+   "status": "N/A",
+   "observed": {},
+   "detail": "No unused network ports listed for this camera in the inventory."
+  },
+  {
+   "id": "AX-B-022",
+   "status": "N/A",
+   "observed": {},
+   "detail": "No unused network ports listed for this camera in the inventory."
+  },
+  {
+   "id": "AX-B-023",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Storage.S0.Enabled": "no"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-024",
+   "status": "COMPLIANT",
+   "observed": {
+    "root.Audio.A0.Enabled": "no",
+    "root.Audio.A1.Enabled": "no"
+   },
+   "detail": ""
+  },
+  {
+   "id": "AX-B-025",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "allowAnonymous": true
+   },
+   "detail": "allowAnonymous=True"
+  },
+  {
+   "id": "AX-C-001",
+   "status": "INFO",
+   "observed": {
+    "version": "12.11.77",
+    "track": "12.x",
+    "minimum": "10.0"
+   },
+   "detail": "AXIS OS 12.11.77 (12.x track). Confirm it is the latest LTS/active release offline."
+  },
+  {
+   "id": "AX-C-002",
+   "status": "COMPLIANT",
+   "observed": {
+    "AuthenticationPolicy": "basic_digest",
+    "https_only": true
+   },
+   "detail": "Policy 'basic_digest' with HTTPS only."
+  },
+  {
+   "id": "AX-C-003",
+   "status": "COMPLIANT",
+   "observed": {
+    "status": null,
+    "error": "UNREACHABLE"
+   },
+   "detail": "Plain HTTP is not reachable."
+  },
+  {
+   "id": "AX-C-004",
+   "status": "COMPLIANT",
+   "observed": {
+    "issuer": "organizationName=Axis Communications AB, commonName=Axis device ID Intermediate CA ECC 2",
+    "notAfter": "Dec 31 23:59:59 9999 GMT",
+    "tls_version": "TLSv1.3"
+   },
+   "detail": "Axis-issued certificate (802.1AR device ID): acceptable. A certificate from your own CA is best (p.24)."
+  },
+  {
+   "id": "AX-C-005",
+   "status": "COMPLIANT",
+   "observed": {
+    "servers": [
+     "192.0.2.102"
+    ],
+    "ObtainFromDHCP": "no",
+    "BootProto": "none",
+    "SyncSource": "NTP",
+    "raw": {
+     "root.Time.NTP.Server": "192.0.2.102",
+     "root.Time.ObtainFromDHCP": "no",
+     "root.Time.SyncSource": "NTP",
+     "root.Time.POSIXTimeZone": "GMT0BST,M3.5.0/1,M10.5.0"
+    }
+   },
+   "detail": "1 NTP server(s) configured. Guide recommends at least two time servers."
+  },
+  {
+   "id": "AX-C-006",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "enabled": false,
+    "servers": []
+   },
+   "detail": "Remote syslog is disabled: logs stay on the camera only (p.25)."
+  },
+  {
+   "id": "AX-C-007",
+   "status": "COMPLIANT",
+   "observed": {
+    "Enabled": "no",
+    "V1": "no",
+    "V2c": "no",
+    "V3": "no"
+   },
+   "detail": "SNMP disabled."
+  },
+  {
+   "id": "AX-C-008",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "RTSPS.Enabled": "no"
+   },
+   "detail": "RTSPS/SRTP is disabled, so video is streamed unencrypted. Enable it in the camera and the VMS (p.25)."
+  },
+  {
+   "id": "AX-C-009",
+   "status": "INFO",
+   "observed": {},
+   "detail": "AXIS OS 11.9+: check the host firewall manually (System > Security > Firewall): default policy Drop with VMS and admin clients allowed. Never changed by this tool."
+  },
+  {
+   "id": "AX-C-010",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "root.Network.Interface.I0.dot1x.Enabled": "yes",
+    "root.Network.Interface.I0.dot1x.Status": "Unauthorized"
+   },
+   "detail": "802.1X is enabled but the port is Unauthorized: check the certificate and the RADIUS/switch setup."
+  },
+  {
+   "id": "AX-C-011",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "root.Image.I0.MPEG.SignedVideo.Enabled": "no",
+    "root.Image.I1.MPEG.SignedVideo.Enabled": "no"
+   },
+   "detail": "Signed video is disabled on 2 of 2 video channel(s)."
+  },
+  {
+   "id": "AX-C-012",
+   "status": "N/A",
+   "observed": {
+    "status": "disconnected",
+    "encryptionenabled": "false",
+    "diskencrypted": "false",
+    "filesystem": "vfat"
+   },
+   "detail": "No SD card inserted."
+  },
+  {
+   "id": "AX-C-013",
+   "status": "INFO",
+   "observed": {
+    "applications": [
+     {
+      "name": "AXIS Object Analytics",
+      "vendor": "Axis Communications",
+      "version": "1.26.205",
+      "status": "Stopped"
+     },
+     {
+      "name": "AXIS Video Motion Detection",
+      "vendor": "Axis Communications",
+      "version": "4.5.70",
+      "status": "Stopped"
+     }
+    ]
+   },
+   "detail": "2 application(s) installed. Not running (remove if unused): AXIS Object Analytics, AXIS Video Motion Detection."
+  },
+  {
+   "id": "AX-C-014",
+   "status": "NON_COMPLIANT",
+   "observed": {
+    "accounts": {
+     "root": "admin+ptz"
+    },
+    "anonymous_group": []
+   },
+   "detail": "Only administrator accounts: root (admin+ptz). Create a limited operator/viewer account for daily use (p.16)."
+  },
+  {
+   "id": "AX-C-015",
+   "status": "INFO",
+   "observed": {},
+   "detail": "Check System > Accounts > OpenID Configuration."
+  },
+  {
+   "id": "AX-C-016",
+   "status": "INFO",
+   "observed": {},
+   "detail": "Check System > Security > Strict security mode (report only: never enabled by this tool; it breaks AXIS Object Analytics / Motion Detection configuration and ONVIF)."
+  },
+  {
+   "id": "AX-C-017",
+   "status": "INFO",
+   "observed": {
+    "root.Network.LLDP.POE.Enabled": "no",
+    "root.Network.LLDP.POE.MaxPower": "9700",
+    "root.Network.LLDP.POE.PoeClass": "3"
+   },
+   "detail": "Report only. Disabling LLDP/CDP may affect PoE negotiation (p.19)."
+  },
+  {
+   "id": "AX-C-018",
+   "status": "NOT_SUPPORTED",
+   "observed": {
+    "root.Network.Filter.Log.Enabled": null
+   },
+   "detail": "Parameter not present on this model/firmware."
+  },
+  {
+   "id": "AX-C-019",
+   "status": "COMPLIANT",
+   "observed": {
+    "shared_with_other_cameras": false,
+    "shorter_than_8": false
+   },
+   "detail": "Unique within this inventory and at least 8 characters."
+  },
+  {
+   "id": "AX-C-020",
+   "status": "INFO",
+   "observed": {
+    "hostname": "axis-accc8e000012",
+    "dns_servers": [
+     "192.0.2.102"
+    ],
+    "dns_from_dhcp": false,
+    "raw": {
+     "root.Network.HostName": "axis-accc8e000012",
+     "root.Network.VolatileHostName.ObtainFromDHCP": "no",
+     "root.Network.Resolver.ObtainFromDHCP": "no",
+     "root.Network.Resolver.NameServer1": "192.0.2.102",
+     "root.Network.Resolver.NameServer2": ""
+    },
+    "resolver": {
+     "useDhcpResolverInfo": false,
+     "staticNameServers": [
+      "192.0.2.102"
+     ],
+     "staticSearchDomains": [],
+     "staticDomainName": ""
+    },
+    "netset_version": "1.38"
+   },
+   "detail": "Host name axis-accc8e000012; DNS 192.0.2.102."
+  }
+ ],
+ "status": "OK"
+}

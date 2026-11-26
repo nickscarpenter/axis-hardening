@@ -33,7 +33,12 @@ from .vapix.client import CameraError
 
 log = logging.getLogger(__name__)
 
-G_PARAMS, G_HANDLERS, G_CIPHERS, G_HTTPS_ONLY, G_WEBUI = 1, 2, 3, 4, 5
+G_PARAMS, G_HANDLERS, G_CIPHERS, G_HTTPS_ONLY, G_WEBUI, G_FIREWALL, G_DOT1X = 1, 2, 3, 4, 5, 6, 7
+DOT1X_WATCH = 30.0            # seconds to keep checking the camera still answers after an 802.1X change
+DOT1X_POLL = 5.0
+FIREWALL_PATH = "/config/rest/firewall/v1"
+FIREWALL_FALLBACK = 60        # seconds before the camera reverts untested firewall rules on its own
+FIREWALL_SETTLE = 3.0         # wait after setting rules before testing that the camera still answers
 SPECIAL_GROUP = {"AX-B-011": G_CIPHERS, "AX-B-009": G_HTTPS_ONLY, "AX-B-016": G_WEBUI}
 GROUP_NAME = {G_PARAMS: "settings", G_HANDLERS: "ACAP/REST settings", G_CIPHERS: "TLS ciphers",
               G_HTTPS_ONLY: "HTTPS only", G_WEBUI: "web interface"}
@@ -140,6 +145,11 @@ def changes_for(ctl: Control, result: ControlResult, host: str) -> tuple[list[Ch
     elif ctl.handler == "anon_device_info":
         kind = "rest_anon"
         writes.append(Write("rest:allowAnonymous", str(result.observed.get("allowAnonymous")), "false"))
+    elif ctl.handler == "rest_property":
+        kind = "rest_prop"
+        path, prop = ctl.handler_args["path"], ctl.handler_args["property"]
+        writes.append(Write(f"rest:{path}#{prop}", json.dumps(result.observed.get(prop)),
+                            json.dumps(ctl.handler_args.get("hardened"))))
     elif ctl.handler == "network_ports":
         return [], "Network port controls arrive in phase 3."
     else:
@@ -227,8 +237,54 @@ def default_changes_for(ctl: Control, result: ControlResult, host: str,
 
 # ---------------------------------------------------------------- camera settings from the camera list
 # hostname / dns / ntp / timezone columns: site-specific values the operator chose, set whatever the profile.
-SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ = "SET-HOSTNAME", "SET-DNS", "SET-NTP", "SET-TZ"
-SETTING_IDS = (SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ)
+SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ, SET_SYSLOG = "SET-HOSTNAME", "SET-DNS", "SET-NTP", "SET-TZ", "SET-SYSLOG"
+SET_FIREWALL, SET_DOT1X = "SET-FIREWALL", "SET-DOT1X"
+SETTING_IDS = (SET_HOSTNAME, SET_DNS, SET_NTP, SET_TZ, SET_SYSLOG, SET_FIREWALL, SET_DOT1X)
+
+
+def local_ip_for(host: str) -> str | None:
+    """The address this PC uses to reach a camera (a UDP 'connect' sends nothing). None if it cannot be worked out."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((host, 9))
+            return s.getsockname()[0]
+    except OSError:
+        return None
+
+
+def firewall_rule(entry: str) -> dict:
+    """allow-list entry -> firewall Rule (FILTER / ACCEPT) for the Device Configuration firewall API."""
+    if "-" in entry:
+        start, end = entry.split("-", 1)
+        return {"ruleType": "FILTER", "ipRange": {"start": start, "end": end}, "filter": {"policy": "ACCEPT"}}
+    return {"ruleType": "FILTER", "ip": entry, "filter": {"policy": "ACCEPT"}}
+
+
+def _rule_key(rule: dict) -> str:
+    if rule.get("ip"):
+        return str(rule["ip"])
+    r = rule.get("ipRange") or {}
+    return f"{r.get('start')}-{r.get('end')}" if r else json.dumps(rule, sort_keys=True)
+
+
+def _allowed(ip: str, entries: list[str]) -> bool:
+    import ipaddress
+    addr = ipaddress.ip_address(ip)
+    for e in entries:
+        if "-" in e:
+            lo, hi = (ipaddress.ip_address(x) for x in e.split("-", 1))
+            if lo.version == addr.version and lo <= addr <= hi:
+                return True
+        elif addr in ipaddress.ip_network(e, strict=False):
+            return True
+    return False
+SYSLOG_PATH = "/axis-cgi/remotesyslog.cgi"
+
+
+def _syslog_key(servers) -> list[tuple]:
+    return [(str(s.get("address", "")).lower(), int(s.get("port") or 0), str(s.get("protocol", "")).upper())
+            for s in servers or [] if isinstance(s, dict)]
 
 
 def _observed(before: CameraResult, control_id: str) -> dict:
@@ -305,6 +361,74 @@ def setting_changes(cam: Camera, before: CameraResult) -> tuple[list[Change], li
         add(_setting(cam.host, SET_NTP, "Set time server (NTP)", tm,
                      {"root.Time.ObtainFromDHCP": "no", "root.Time.SyncSource": "NTP", "root.Time.NTP.Server": cam.ntp},
                      now, cam.ntp, "root.Time.NTP.Server"))
+    dx = _observed(before, "AX-C-010")
+    if cam.dot1x or cam.dot1x_identity:
+        en_keys = [k for k in dx if k.lower().endswith("dot1x.enabled")]
+        id_keys = [k for k in dx if k.lower().endswith("dot1x.eaptls.identity")]
+        if not en_keys:
+            notes.append((SET_DOT1X, "802.1X: this camera has no 802.1X settings."))
+        else:
+            writes = []
+            if cam.dot1x:
+                want = "yes" if cam.dot1x == "on" else "no"
+                writes += [Write(k, dx[k], _match_case(dx[k], want)) for k in en_keys if not _eq(dx[k], want)]
+            if cam.dot1x_identity:
+                writes += [Write(k, dx[k], cam.dot1x_identity) for k in id_keys if dx[k] != cam.dot1x_identity]
+            if writes:
+                on_now = any(_eq(dx[k], "yes") for k in en_keys)
+                turning_on = cam.dot1x == "on" and not on_now
+                changes.append(Change(
+                    camera=cam.host, control_id=SET_DOT1X, title="Set IEEE 802.1X", group=G_DOT1X, kind="param",
+                    writes=writes, disruptive=True,
+                    now_label=("Enabled" if on_now else "Disabled"),
+                    new_label=("Enabled" if (cam.dot1x or ("on" if on_now else "off")) == "on" else "Disabled") +
+                              (f", identity {cam.dot1x_identity}" if cam.dot1x_identity else ""),
+                    warning=("If the switch port enforces 802.1X and RADIUS does not accept the camera's certificate, "
+                             "the camera drops off the network. There is NO automatic undo: the switch port or RADIUS "
+                             "then has to be fixed (or 802.1X disabled on the port) on site." if turning_on else
+                             "The switch port must allow the camera without 802.1X, or it can drop off the network.")))
+    fw = _observed(before, "AX-C-009")
+    if cam.allow and "activated" in fw:
+        me = local_ip_for(cam.host)
+        if me is None:
+            notes.append((SET_FIREWALL, "Firewall: could not work out this PC's address, so the firewall is not "
+                                        "changed (it could lock the tool out)."))
+        else:
+            entries = list(cam.allow) + ([] if _allowed(me, cam.allow) else [me])
+            cur = {"activated": bool(fw["activated"]), "defaultPolicy": fw.get("defaultPolicy") or "ACCEPT",
+                   "rules": list(fw.get("rules") or [])}
+            new = {"activated": True, "defaultPolicy": "DROP", "rules": [firewall_rule(e) for e in entries]}
+            if not (cur["activated"] and cur["defaultPolicy"] == "DROP"
+                    and sorted(map(_rule_key, cur["rules"])) == sorted(map(_rule_key, new["rules"]))):
+                now = ("Disabled" if not cur["activated"] else
+                       f"Enabled, default {cur['defaultPolicy']}, {len(cur['rules'])} rule(s)")
+                changes.append(Change(
+                    camera=cam.host, control_id=SET_FIREWALL, title="Set firewall (block all except allow list)",
+                    group=G_FIREWALL, kind="firewall",
+                    writes=[Write("firewall:rules", json.dumps(cur, sort_keys=True), json.dumps(new, sort_keys=True))],
+                    disruptive=True, now_label=now,
+                    new_label=f"Block all except {', '.join(entries)}",
+                    warning=(f"Everything not in the allow list loses access to the camera (VMS, other PCs). This PC "
+                             f"({me}) is always allowed. The camera reverts automatically within {FIREWALL_FALLBACK} s "
+                             "if the tool cannot reach it afterwards.")))
+    elif cam.allow:
+        notes.append((SET_FIREWALL, "Firewall: needs AXIS OS 11.9 or later (the older IP filter is not changed by "
+                                    "this tool)."))
+    sl = _observed(before, "AX-C-006")
+    if cam.syslog and "servers" in sl:
+        cur = {"enabled": bool(sl.get("enabled")), "servers": list(sl.get("servers") or [])}
+        new = {"enabled": True, "servers": [dict(s) for s in cam.syslog]}
+        if not (cur["enabled"] and _syslog_key(cur["servers"]) == _syslog_key(new["servers"])):
+            now = (", ".join(f"{a}:{p}/{pr}" for a, p, pr in _syslog_key(cur["servers"])) or "None") + \
+                ("" if cur["enabled"] else " (disabled)")
+            changes.append(Change(camera=cam.host, control_id=SET_SYSLOG, title="Set remote syslog servers",
+                                  group=G_HANDLERS, kind="syslog",
+                                  writes=[Write("syslog:servers", json.dumps(cur, sort_keys=True),
+                                                json.dumps(new, sort_keys=True))],
+                                  now_label="Disabled" if not cur["enabled"] else now,
+                                  new_label=", ".join(f"{s['address']}:{s['port']}/{s['protocol']}" for s in cam.syslog)))
+    elif cam.syslog:
+        notes.append((SET_SYSLOG, "Set remote syslog servers: this camera has no Remote Syslog API."))
     if cam.timezone:
         iana, posix = resolve(cam.timezone)
         wanted = {"root.Time.POSIXTimeZone": posix}
@@ -431,6 +555,29 @@ class Executor:
             if r.status_code != 200 or err:
                 return f"HTTP {r.status_code}: {err or r.text.strip()[:160]}"
             return None
+        if ch.kind == "syslog":
+            # Remote Syslog API: setup (server list, max 2) then enable/disable. Errors come back as HTTP 200 + "error".
+            want = json.loads(w.new)
+            servers = [{k: s[k] for k in ("address", "port", "protocol", "syslogFormat", "severity", "type") if k in s}
+                       for s in want.get("servers") or []]
+            for method, params in (("setup", {"servers": servers}),
+                                   ("enable" if want.get("enabled") and servers else "disable", None)):
+                body = {"apiVersion": "1.0", "method": method, **({"params": params} if params is not None else {})}
+                r = self.client.post_json(SYSLOG_PATH, body, ok_statuses=(200, 400, 404, 500))
+                try:
+                    err = r.json().get("error") if r.status_code == 200 else None
+                except ValueError:
+                    err = None
+                if r.status_code != 200 or err:
+                    return f"{method}: HTTP {r.status_code}: {err or r.text.strip()[:160]}"
+            return None
+        if ch.kind == "rest_prop":
+            # Device Configuration API: PATCH <path>/<property> {"data": value}
+            path, prop = w.name.split(":", 1)[1].split("#", 1)
+            r = self.client.patch_json(f"{path}/{prop}", {"data": json.loads(w.new)}, ok_statuses=(200, 204, 400, 404))
+            if r.status_code not in (200, 204):
+                return f"HTTP {r.status_code}: {r.text.strip()[:160]}"
+            return None
         if ch.kind == "rest_anon":
             value = str(w.new).strip().lower() == "true"
             r = self.client.patch_json(ANON_PATH, {"data": value}, ok_statuses=(200, 204, 400, 404))
@@ -498,6 +645,95 @@ class Executor:
                 raise LostContact("Camera stopped answering after HTTPS-only was enabled.")
             self.client = fresh
 
+    # --- firewall (Device Configuration API, AXIS OS 11.9+)
+    def _fw_call(self, method: str, sub: str, data: Any = None) -> None:
+        path = f"{FIREWALL_PATH}/{sub}"
+        if method == "PATCH":
+            r = self.client.patch_json(path, {"data": data}, ok_statuses=(200, 204, 400, 404, 500))
+        else:
+            r = self.client.post_json(path, {"data": data}, ok_statuses=(200, 204, 400, 404, 500))
+        try:
+            ok = r.status_code in (200, 204) and (r.status_code == 204 or r.json().get("status") == "success")
+        except ValueError:
+            ok = False
+        if not ok:
+            raise CameraError(f"firewall {sub}: HTTP {r.status_code}: {r.text.strip()[:160]}")
+
+    def _fw_set(self, policy: str, rules: list, test: bool) -> None:
+        """test=False: only while the firewall is OFF (nothing enforced): set the rules directly (fallbackTime 0; the
+        camera refuses to test rules while inactive). test=True: only while ON: set them with the camera's fallback
+        timer, prove on a fresh connection that the tool can still reach the camera, then confirm. If the camera no
+        longer answers, the rules are not confirmed and the camera reverts by itself."""
+        clean = [{k: v for k, v in r.items() if v is not None} for r in rules]   # the camera reports unset fields as null
+        self._fw_call("POST", "conf/setRules", {"defaultPolicy": policy,
+                                                "fallbackTime": FIREWALL_FALLBACK if test else 0, "rules": clean})
+        if not test:
+            return
+        time.sleep(FIREWALL_SETTLE)
+        try:
+            fresh = self.factory(self.camera, scheme=self.client.scheme)
+            fresh.negotiate()
+            ok = self.still_answers(fresh)
+        except CameraError:
+            ok = False
+        if not ok:
+            raise LostContact(f"The camera stopped answering after the firewall rules were set. They were NOT "
+                              f"confirmed: the camera puts the previous rules back by itself within "
+                              f"{FIREWALL_FALLBACK} s. Check the allow list.")
+        self.client = fresh
+        self._fw_call("POST", "conf/confirmRules", None)
+
+    def run_dot1x(self, changes: list[Change]) -> None:
+        """Write the 802.1X settings, then keep checking (on fresh connections) that the camera still answers while
+        the switch port re-authenticates. No automatic undo exists if it does not."""
+        self.run_params(changes)
+        if all(ch.status == "failed" for ch in changes):
+            return
+        waited = 0.0
+        while True:
+            time.sleep(DOT1X_POLL)
+            waited += DOT1X_POLL
+            try:
+                fresh = self.factory(self.camera, scheme=self.client.scheme)
+                fresh.negotiate()
+                ok = self.still_answers(fresh)
+            except CameraError:
+                ok = False
+            if not ok:
+                raise LostContact("The camera stopped answering after the 802.1X change. The switch port is probably "
+                                  "blocking it: fix the RADIUS/switch setup or disable 802.1X on that port. This "
+                                  "change cannot be undone remotely.")
+            self.client = fresh
+            if waited >= DOT1X_WATCH:
+                return
+
+    def run_firewall(self, changes: list[Change]) -> None:
+        for ch in changes:
+            w = ch.writes[0]
+            want = json.loads(w.new)
+            try:
+                r = self.client.get(FIREWALL_PATH)
+                active = bool((r.json().get("data") or {}).get("activated"))
+                if want.get("activated"):
+                    if not active:          # switch on with an accept-all rule set first: nothing is blocked yet
+                        self._fw_set("ACCEPT", [], test=False)
+                        self._fw_call("PATCH", "activated", True)
+                    self._fw_set(want["defaultPolicy"], want["rules"], test=True)
+                else:
+                    if active:              # switch off first, so restoring old rules can never block anything
+                        self._fw_call("PATCH", "activated", False)
+                    self._fw_set(want["defaultPolicy"], want["rules"], test=False)
+            except LostContact as e:
+                self._log_write(ch, w, "error", str(e))
+                ch.status, ch.detail = "failed", str(e)
+                raise
+            except (CameraError, ValueError) as e:
+                self._log_write(ch, w, "error", str(e))
+                ch.status, ch.detail = "failed", str(e)
+                continue
+            self._log_write(ch, w, "ok")
+            ch.status, ch.detail = "applied", ""
+
     def run_webui(self, changes: list[Change]) -> None:
         self.run_params(changes)
         if not self.still_answers():
@@ -518,6 +754,10 @@ class Executor:
                 self.run_https_only(chs, enabling)
             elif g == G_WEBUI:
                 self.run_webui(chs)
+            elif g == G_FIREWALL:
+                self.run_firewall(chs)
+            elif g == G_DOT1X:
+                self.run_dot1x(chs)
 
 
 def verify_changes(changes: list[Change], tree: vparams.ParamTree, after: list[ControlResult],
@@ -532,6 +772,30 @@ def verify_changes(changes: list[Change], tree: vparams.ParamTree, after: list[C
                 now = tree.get(w.name)
                 if not _same(now, w.new):
                     problems.append(f"{w.name} reads back as {now!r}, expected {w.new!r}")
+        elif ch.kind == "firewall":
+            r = after_by_id.get("AX-C-009")
+            got = (r.observed or {}) if r else {}
+            want = json.loads(ch.writes[0].new)
+            if bool(got.get("activated")) != bool(want.get("activated")):
+                problems.append(f"firewall activated reads back as {got.get('activated')!r}")
+            if got.get("defaultPolicy") != want.get("defaultPolicy"):
+                problems.append(f"default policy reads back as {got.get('defaultPolicy')!r}")
+            if sorted(map(_rule_key, got.get("rules") or [])) != sorted(map(_rule_key, want.get("rules") or [])):
+                problems.append(f"rules read back as {sorted(map(_rule_key, got.get('rules') or []))}")
+        elif ch.kind == "syslog":
+            r = after_by_id.get("AX-C-006")
+            got = (r.observed or {}) if r else {}
+            want = json.loads(ch.writes[0].new)
+            if bool(got.get("enabled")) != bool(want.get("enabled") and want.get("servers")):
+                problems.append(f"syslog enabled reads back as {got.get('enabled')!r}")
+            if _syslog_key(got.get("servers")) != _syslog_key(want.get("servers")):
+                problems.append(f"syslog servers read back as {_syslog_key(got.get('servers'))}")
+        elif ch.kind == "rest_prop":
+            r = after_by_id.get(ch.control_id)
+            prop = ch.writes[0].name.split("#", 1)[1]
+            got = (r.observed or {}).get(prop) if r else None
+            if got != json.loads(ch.writes[0].new):
+                problems.append(f"{prop} reads back as {got!r}, expected {json.loads(ch.writes[0].new)!r}")
         elif ch.kind == "net_resolver":
             r = after_by_id.get("AX-C-020")
             got = ((r.observed or {}).get("resolver") or {}) if r else {}

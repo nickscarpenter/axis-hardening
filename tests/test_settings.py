@@ -85,3 +85,133 @@ def test_no_address_spellings_count_as_equal():
     from axharden.apply import _same
     assert _same("", "0.0.0.0") and _same("0.0.0.0", "") and _same("::", "")
     assert not _same("", "10.0.0.1") and _same("Yes", "yes")
+
+
+def test_syslog_column_parse_and_validate():
+    from axharden.inventory import parse_syslog
+    assert parse_syslog("10.0.0.9") == [{"address": "10.0.0.9", "port": 6514, "protocol": "TLS"}]
+    assert parse_syslog("10.0.0.9:514/udp; logs.local/tcp") == [
+        {"address": "10.0.0.9", "port": 514, "protocol": "UDP"}, {"address": "logs.local", "port": 601, "protocol": "TCP"}]
+    for bad, why in (("10.0.0.9/ftp", "udp, tcp or tls"), ("a;b;c", "at most two"), ("10.0.0.9:99999", "1 to 65535"),
+                     ("x;x", "the same"), ("bad host!", "not an IP")):
+        with pytest.raises(ValueError, match=why):
+            parse_syslog(bad)
+
+
+def test_syslog_set_verify_and_undo(tmp_path, catalog, m4216_12):
+    from axharden.apply import SET_SYSLOG
+    cams, factory, devices, prof, out, plans = setup(tmp_path, catalog, [m4216_12])
+    cams = _with_settings(cams, syslog=[{"address": "192.0.2.50", "port": 514, "protocol": "UDP"}])
+    plan = make_plan([p.before for p in plans], cams, catalog, prof)
+    ch = next(c for c in plan[0].changes if c.control_id == SET_SYSLOG)
+    assert (ch.now_label, ch.new_label) == ("Disabled", "192.0.2.50:514/UDP")
+    _, run_dir, res = apply(catalog, prof, out, plan, factory)
+    done = next(c for c in res[0].changes if c.get("control_id") == SET_SYSLOG)
+    assert done["status"] == "verified", done
+    dev = devices["192.0.2.12"]
+    assert dev.syslog["enabled"] is True and dev.syslog["servers"][0]["address"] == "192.0.2.50"
+    after = {r.id: r for r in res[0].after}
+    assert after["AX-C-006"].status == "COMPLIANT" and "not over TLS" in after["AX-C-006"].detail
+    _, rplans = build_rollback(run_dir, cams, only_controls=[SET_SYSLOG])
+    run_rollback(run_dir, rplans, catalog, AuditSettings(operator="t"), out, "--yes", client_factory=factory,
+                 simulated=True)
+    assert dev.syslog["enabled"] is False and dev.syslog["servers"] == []
+
+
+def _fw_setup(tmp_path, catalog, m4216_12, monkeypatch, camera_sees="192.0.2.200"):
+    import axharden.apply as apply_mod
+    monkeypatch.setattr(apply_mod, "FIREWALL_SETTLE", 0)
+    monkeypatch.setattr(apply_mod, "local_ip_for", lambda host: "192.0.2.200")      # what the tool thinks it is
+    cams, factory, devices, prof, out, plans = setup(tmp_path, catalog, [m4216_12])
+    devices["192.0.2.12"].client_ip = camera_sees                                     # what the camera sees
+    cams = _with_settings(cams, allow=["192.0.2.102", "198.51.100.0/24"])
+    return cams, factory, devices["192.0.2.12"], prof, out, make_plan([p.before for p in plans], cams, catalog, prof)
+
+
+def test_allow_column_validation():
+    from axharden.inventory import parse_allow
+    assert parse_allow("10.0.0.5; 10.0.200.7/24, 10.0.0.10-10.0.0.20") == ["10.0.0.5", "10.0.200.0/24",
+                                                                           "10.0.0.10-10.0.0.20"]
+    for bad, why in (("0.0.0.0/0", "allow everyone"), ("10.0.0.9-10.0.0.1", "before"), ("nope", "not an IP")):
+        with pytest.raises(ValueError, match=why):
+            parse_allow(bad)
+
+
+def test_firewall_set_with_safety_net_and_undo(tmp_path, catalog, m4216_12, monkeypatch):
+    from axharden.apply import SET_FIREWALL
+    cams, factory, dev, prof, out, plan = _fw_setup(tmp_path, catalog, m4216_12, monkeypatch)
+    ch = next(c for c in plan[0].changes if c.control_id == SET_FIREWALL)
+    assert ch.disruptive and ch.now_label == "Disabled"
+    assert ch.new_label == "Block all except 192.0.2.102, 198.51.100.0/24, 192.0.2.200"   # this PC added
+    _, run_dir, res = apply(catalog, prof, out, plan, factory)
+    done = next(c for c in res[0].changes if c.get("control_id") == SET_FIREWALL)
+    assert done["status"] == "verified", done
+    assert dev.fw["activated"] and dev.fw["conf"]["rules"]["activeDefaultPolicy"] == "DROP" and dev.fw_prev is None
+    assert {r.id: r for r in res[0].after}["AX-C-009"].status == "COMPLIANT"
+    dev.client_ip = "192.0.2.99"                                    # some other device: now blocked
+    with pytest.raises(Exception):
+        factory(cams[0]).negotiate()
+    dev.client_ip = "192.0.2.200"
+    _, rplans = build_rollback(run_dir, cams, only_controls=[SET_FIREWALL])
+    run_rollback(run_dir, rplans, catalog, AuditSettings(operator="t"), out, "--yes", client_factory=factory,
+                 simulated=True)
+    assert dev.fw["activated"] is False                             # back to the original state
+
+
+def test_firewall_not_confirmed_when_tool_is_cut_off(tmp_path, catalog, m4216_12, monkeypatch):
+    """The camera sees the tool under another address (e.g. NAT): the test connection fails, the rules are never
+    confirmed, the camera's fallback restores access and the camera is reported, not left locked."""
+    from axharden.apply import SET_FIREWALL
+    cams, factory, dev, prof, out, plan = _fw_setup(tmp_path, catalog, m4216_12, monkeypatch,
+                                                    camera_sees="203.0.113.5")
+    _, _, res = apply(catalog, prof, out, plan, factory)
+    assert res[0].status == "LOST_CONTACT"
+    done = next(c for c in res[0].changes if c.get("control_id") == SET_FIREWALL)
+    assert done["status"] == "failed" and "NOT confirmed" in done["detail"]
+    assert dev.fw["conf"]["rules"]["activeDefaultPolicy"] == "ACCEPT"   # fallback put the accept-all set back
+    factory(cams[0]).negotiate()                                         # reachable again
+
+
+def _dot1x_setup(tmp_path, catalog, m4216_12, monkeypatch, **cols):
+    import axharden.apply as apply_mod
+    monkeypatch.setattr(apply_mod, "DOT1X_POLL", 0)
+    monkeypatch.setattr(apply_mod, "DOT1X_WATCH", 0)
+    cams, factory, devices, prof, out, plans = setup(tmp_path, catalog, [m4216_12])
+    cams = _with_settings(cams, **cols)
+    return cams, factory, devices["192.0.2.12"], prof, out, make_plan([p.before for p in plans], cams, catalog, prof)
+
+
+def test_dot1x_columns_validated():
+    from axharden.inventory import parse_onoff
+    assert parse_onoff("On") == "on" and parse_onoff("disabled") == "off" and parse_onoff("") == ""
+    with pytest.raises(ValueError):
+        parse_onoff("maybe")
+
+
+def test_dot1x_off_identity_and_undo(tmp_path, catalog, m4216_12, monkeypatch):
+    from axharden.apply import SET_DOT1X
+    cams, factory, dev, prof, out, plan = _dot1x_setup(tmp_path, catalog, m4216_12, monkeypatch, dot1x="off",
+                                                       dot1x_identity="gatecam1")
+    ch = next(c for c in plan[0].changes if c.control_id == SET_DOT1X)
+    assert ch.disruptive and (ch.now_label, ch.new_label) == ("Enabled", "Disabled, identity gatecam1")
+    _, run_dir, res = apply(catalog, prof, out, plan, factory)
+    assert next(c for c in res[0].changes if c.get("control_id") == SET_DOT1X)["status"] == "verified"
+    key = "root.Network.Interface.I0.dot1x"
+    assert dev.params[key + ".Enabled"] == "no" and dev.params[key + ".EAPTLS.Identity"] == "gatecam1"
+    _, rplans = build_rollback(run_dir, cams, only_controls=[SET_DOT1X])
+    run_rollback(run_dir, rplans, catalog, AuditSettings(operator="t"), out, "--yes", client_factory=factory,
+                 simulated=True)
+    assert dev.params[key + ".Enabled"] == "yes" and dev.params[key + ".EAPTLS.Identity"] == "axis-accc8e000012"
+
+
+def test_dot1x_enable_on_enforcing_port_is_reported(tmp_path, catalog, m4216_12, monkeypatch):
+    """Turning 802.1X on where RADIUS rejects the camera: it drops off, the camera is stopped and reported."""
+    from axharden.apply import SET_DOT1X
+    key = "root.Network.Interface.I0.dot1x.Enabled"
+    m4216_12["params"][key] = "no"
+    cams, factory, dev, prof, out, plan = _dot1x_setup(tmp_path, catalog, m4216_12, monkeypatch, dot1x="on")
+    dev.after_write_hook = lambda name, value: setattr(dev, "reachable", not (name == key and value == "yes"))
+    _, _, res = apply(catalog, prof, out, plan, factory)
+    assert res[0].status == "LOST_CONTACT" and "cannot be undone remotely" in res[0].error
+    ch = next(c for c in plan[0].changes if c.control_id == SET_DOT1X)
+    assert "NO automatic undo" in ch.warning
