@@ -82,3 +82,18 @@ def test_strict_security_mode_is_manual_from_12_11(tmp_path, catalog, m4216):
     strict = by["192.0.2.12"]["AX-C-016"]
     assert strict.status == "INFO" and "never enabled by this tool" in strict.detail
     assert "AX-C-016" in [cid for cid, _ in _info_groups(results, catalog)["manual"]]
+
+
+def test_report_shows_actual_compliance_and_info_tables(tmp_path, catalog, m4216):
+    import re
+    from axharden.report import write_reports
+    from test_apply import apply, setup
+    cams, factory, devices, prof, out, plans = setup(tmp_path, catalog, [m4216])
+    run_id, run_dir, res = apply(catalog, prof, out, plans, factory)
+    write_reports(run_dir, catalog)
+    html = (run_dir / f"report-{run_id}.html").read_text(encoding="utf-8")
+    assert "→" not in html.split("<h1>Overview")[0]                      # summary: one figure, no before -> after
+    score = re.search(r"<b>Compliance</b><span>([^<]*)</span>", html).group(1)
+    assert re.fullmatch(r"\d+%", score)                                   # camera page: the actual figure only
+    assert "Needs a manual check" not in html
+    assert '<table class="fu">' in html and "What was found" in html

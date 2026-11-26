@@ -540,6 +540,17 @@ def rest_property(ctl: Control, ctx: AuditContext) -> ControlResult:
 
 @handler("lldp")
 def lldp(ctl: Control, ctx: AuditContext) -> ControlResult:
+    import json
+    res = http_get(ctx, "/config/rest/lldp/v1")           # Device Configuration API (11.x/12.x)
+    if res.get("status") == 200:
+        try:
+            on = (json.loads(res["text"]).get("data") or {}).get("activated")
+        except ValueError:
+            on = None
+        if on is not None:
+            return ControlResult(ctl.id, INFO, {"activated": on},
+                                 "LLDP/CDP is " + ("enabled" if on else "disabled") +
+                                 (". Disabling it can affect PoE power negotiation (p.19)." if on else "."))
     found = {k: val for k, val in ctx.params.match("root.Network.LLDP.*")}
     found.update({k: val for k, val in ctx.params.match("root.Network.CDP.*")})
     if not found:

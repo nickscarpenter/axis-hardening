@@ -28,7 +28,7 @@ from ..apply import build_rollback, make_plan, run_apply, run_rollback
 from ..audit import AuditSettings, CameraResult, load_fixture_cameras, run_audit, simulated_factory
 from ..catalog import (BUILTIN_PROFILES, CatalogError, list_profiles, load_catalog, load_profile, profile_slug,
                        resource_dir, save_profile, user_profiles_dir)
-from ..evaluate import NON_COMPLIANT, compliance_pct
+from ..evaluate import ERROR, NON_COMPLIANT, compliance_pct
 from ..inventory import Camera, Credential, InventoryError, NewAccount, load_inventory, password_findings, write_templates
 from ..vapix import users as vusers
 from ..logging_setup import setup_logging
@@ -75,6 +75,8 @@ def needs_extra_confirm(item) -> bool:
     cid = getattr(item, "control_id", None) or getattr(item, "id", "")
     return bool(item.disruptive) and cid not in NO_EXTRA_CONFIRM
 
+
+HARDENING_KINDS = ("audit", "apply", "rollback")   # runs whose report "Open report" shows
 
 MARKINGS = ["", "TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED"]
 
@@ -568,8 +570,9 @@ class App:
         self.progress.step(1)
         done, total = int(self.progress["value"]), int(self.progress["maximum"])
         self.var_progress_text.set(f"Checked {done} of {total}")
-        pct = compliance_pct(r.results) if r.reachable else None
-        issues = sum(x.status == NON_COMPLIANT for x in r.results)
+        scored = self.scored(r.results)            # against the chosen baseline, exactly as in the report
+        pct = compliance_pct(scored) if r.reachable else None
+        issues = sum(x.status in (NON_COMPLIANT, ERROR) for x in scored)
         values = (r.camera.get("name") or r.camera["host"], r.camera["host"], r.device.get("ProdNbr", ""),
                   r.device.get("Version", ""), STATUS_LABEL.get(r.status, r.status),
                   "" if pct is None else f"{pct:.0f}%", str(issues) if r.reachable else "")
@@ -619,7 +622,7 @@ class App:
             result = f"{ok} changed" + (f", {bad} failed" if bad else "")
         final = self.scored(r.after or r.results)
         pct = compliance_pct(final) if final else None
-        issues = sum(x.status == NON_COMPLIANT for x in final)
+        issues = sum(x.status in (NON_COMPLIANT, ERROR) for x in final)
         tag = "bad" if bad or r.status != "OK" else ("ok" if issues == 0 else "")
         values = (r.camera.get("name") or r.camera["host"], r.camera["host"], r.device.get("ProdNbr", ""),
                   r.device.get("Version", ""), result, "" if pct is None else f"{pct:.0f}%", str(issues))
@@ -628,9 +631,11 @@ class App:
 
     def _finished(self, run_dir: Path, html: Path, kind: str = "audit", extra=None) -> None:
         self._busy(False)
-        self.last_run_dir, self.last_report = run_dir, html
-        self.btn_report.configure(state="normal")
-        self.btn_folder.configure(state="normal")
+        if kind in HARDENING_KINDS:          # account and restart runs keep their files but are not "the" report
+            self.last_run_dir, self.last_report = run_dir, html
+        if self.last_report is not None:
+            self.btn_report.configure(state="normal")
+            self.btn_folder.configure(state="normal")
         results = list(self.results.values())
         if kind == "audit":
             self.audit_run_id, self.audit_results = extra
@@ -675,7 +680,13 @@ class App:
                 if back:
                     text += f" The original login account is back on {len(back)} camera(s)."
             if failed:
-                text += f" {len(failed)} failed (see the report)."
+                text += f" {len(failed)} failed:"
+                why = [(r.camera.get("name") or r.camera["host"], c) for r in results for c in r.changes
+                       if "writes" in c and c["status"] == "failed"]
+                for name, c in why[:6]:
+                    text += f"\n  • {name}: {c.get('title', '')}: {c.get('detail', '')}"
+                if len(why) > 6:
+                    text += f"\n  ...and {len(why) - 6} more (details in the account run folder)"
             if unreachable:
                 text += f" {len(unreachable)} camera(s) could not be reached."
             title = "Accounts finished" if kind == "accounts" else "Undo finished"
@@ -717,7 +728,10 @@ class App:
             text += "\nRun the check again to confirm the result."
             title = "Changes finished" if kind == "apply" else "Undo finished"
         self.var_progress_text.set(text.replace("\n", "  "))
-        if messagebox.askyesno(title, f"{text}\n\nOpen the report now?", parent=self.root):
+        if kind not in HARDENING_KINDS:
+            # accounts / restarts: just say what happened; "Open report" keeps showing the last hardening report
+            messagebox.showinfo(title, text, parent=self.root)
+        elif messagebox.askyesno(title, f"{text}\n\nOpen the report now?", parent=self.root):
             self.open_report()
         if kind in ("apply", "rollback") and self.restart_hosts:
             self.restart_cameras(self.restart_hosts)
@@ -969,9 +983,11 @@ class App:
         lines = [FRIENDLY.get(r.status, r.status)]
         if r.error:
             lines.append(f"\nTechnical detail: {r.error}")
-        bad = [x for x in r.results if x.status == NON_COMPLIANT]
+        bad = [x for x in self.scored(r.after or r.results) if x.status == NON_COMPLIANT]
         if bad:
-            lines.append(f"\n{len(bad)} setting(s) do not meet the hardening guide:")
+            against = (f"the '{self.baseline_name}' profile" if getattr(self, "baseline_ids", None)
+                       else "the hardening guide")
+            lines.append(f"\n{len(bad)} setting(s) do not meet {against}:")
             for x in bad[:12]:
                 ctl = self.catalog.by_id.get(x.id)
                 lines.append(f"  • {ctl.title if ctl else x.id}")

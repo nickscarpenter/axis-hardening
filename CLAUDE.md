@@ -340,6 +340,10 @@ Against a reference camera: dump `param.cgi?action=list` and `/axis-cgi/apidisco
 3. **Run check**: background thread with a progress bar and a results table (Checked / Not reachable / Wrong password / Certificate problem...). Double-clicking a camera explains the problem and lists failing settings. Then "Open report" / "Open report folder".
 - Tools menu: **Try a demo** (bundled recorded data in `catalog/demo/`, no network) and an Advanced `discover`.
 - Remembers only non-secret choices in `output/gui_settings.json`. Never stores credentials.
+- "Open report" always shows the last **hardening** report (check, Fix problems, undo: `HARDENING_KINDS`). Account and
+  restart runs still write their run folder and audit-log entries, but only show a summary message (with failure
+  reasons) and never replace the report. The GUI score, problem count and double-click list use the chosen
+  baseline, exactly as the report (test `test_gui_score_matches_report`).
 - "Fix problems..." opens a preview with a tick box per change and a profile picker (Axis-recommended + custom); "Undo last changes" rolls back the last apply run.
 - Tools > Hardening profiles: profile editor (built-in profiles read-only; save custom copies).
 
@@ -430,7 +434,9 @@ No passwords appear anywhere. The report shows the run ID in its footer and a co
 - [x] Reference camera: AXIS M4216-LV, AXIS OS 10.12.252. Still need 11.x and 12.x reference cameras.
 - [x] Remote syslog: `POST /axis-cgi/remotesyslog.cgi` method `status` → `data.enabled`, `data.servers` (confirmed M4216-LV 10.12.252). SD encryption: `GET /axis-cgi/disks/list.cgi?diskid=all` → `SD_DISK` `status`, `diskencrypted` (confirmed 10.12.252; empty slot = N/A). AX-C-004: Axis 802.1AR or CA certificate = COMPLIANT, self-signed = NON_COMPLIANT.
 - [ ] Firewall (11.9+), OpenID and strict-security-mode read APIs: still manual. Confirm on an 11.x/12.x camera.
-- Report "Follow-up" groups INFO results: *Needs a manual check* (handler `manual` or detail says manual), *Your decision* (`followup: decision` in the catalog), *For information* (everything else), each with the per-camera finding.
+- Report "Follow-up": *Your decision* (`followup: decision`) and *For information* tables (Check | p. | Camera(s) | What
+  was found, raw "X='no' (want yes)" turned into plain words). Manual-check items (handler `manual`) are not listed.
+  Compliance is always the actual (current) figure, never "before → after".
 - [ ] Are cameras already on HTTPS? Self-signed, 802.1AR or CA-issued certificates?
 - [ ] Target OS on the secure system; Python allowed, or frozen .exe only?
 - [ ] VMS in use (affects WS-Discovery, RTSPS and web-UI disable decisions)

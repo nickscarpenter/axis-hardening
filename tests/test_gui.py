@@ -346,3 +346,47 @@ def test_profile_editor_says_how_checks_are_fixed(app, monkeypatch):
     ed.toggle("AX-C-008")                                  # yes: the matching setting is ticked too
     assert {"AX-C-008", "AX-E-001"} <= ed.ticked and "(ticked)" in note("AX-C-008")
     ed.close()
+
+
+@pytest.mark.parametrize("baseline", ["audit-only", "basic-safe", "vysiion", "basic-full"])
+def test_gui_score_matches_report(app, baseline):
+    """The Score and Problems columns must show exactly what the report shows for each camera."""
+    import re
+    app.var_baseline.set(next(lbl for lbl, n in app.baseline_labels.items() if n == baseline))
+    app.run_demo()
+    _wait(app)
+    html = next(Path(app.var_output.get()).glob("runs/*/report-*.html")).read_text(encoding="utf-8")
+    for iid in app.tree.get_children():
+        name, _, _, _, _, score, problems = app.tree.item(iid, "values")
+        section = html.split(f"<h1>{name}</h1>", 1)[1].split('<section class="cam">', 1)[0]
+        report_score = re.search(r"<b>Compliance</b><span>([^<]*)</span>", section).group(1)
+        report_problems = re.search(r"<h2>(?:Remaining problems|Problems) \((\d+)\)</h2>", section).group(1)
+        assert (score, problems) == (report_score, report_problems), (baseline, name)
+    for f in Path(app.var_output.get()).glob("runs/*"):
+        import shutil
+        shutil.rmtree(f)
+
+
+def test_account_and_restart_runs_keep_the_hardening_report(app, monkeypatch):
+    from axharden.gui import app as gui
+    from axharden.vapix import users as vusers
+    app.run_demo()
+    _wait(app)
+    audit_report = app.last_report
+    assert audit_report and audit_report.exists()
+    dlg = gui.AccountDialog(app)
+    dlg.win.withdraw()
+    dlg.form1.var_user.set("vmsview")
+    dlg.form1.var_pw1.set("Viewer-Pass-123")
+    dlg.form1.var_pw2.set("Viewer-Pass-123")
+    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *a, **k: True)
+    opened = []
+    monkeypatch.setattr(app, "open_report", lambda: opened.append(app.last_report))
+    dlg.create()
+    _wait(app)
+    assert app.last_report == audit_report and not opened         # no account report shown or offered
+    assert app.calls[-1][0] == "showinfo" and "Created and verified" in app.calls[-1][1][1]
+    app.start_restart(app.audit_cams[:1])
+    _wait(app)
+    assert app.last_report == audit_report and not opened
+    assert str(app.btn_report["state"]) == "normal"

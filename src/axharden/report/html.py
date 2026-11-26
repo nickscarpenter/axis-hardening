@@ -22,7 +22,7 @@ SYMBOL = {
     NOT_SUPPORTED: ("—", "na", "Not supported on this firmware/model"),
     NA: ("—", "na", "Not applicable"),
     ERROR: ("!", "err", "Could not be read"),
-    INFO: ("i", "info", "Information / manual check"),
+    INFO: ("i", "info", "Information"),
 }
 CHANGE_LABEL = {"verified": ("✔", "ok", "Changed and verified"), "failed": ("✘", "bad", "Failed"),
                 "skipped": ("—", "na", "Not attempted"), "applied": ("?", "err", "Written, not verified")}
@@ -95,6 +95,7 @@ tr.lvl td{background:#ececec;font-weight:700}
 .legend span{margin-right:12px;white-space:nowrap}
 code{font-family:Consolas,monospace;font-size:11px;word-break:break-all}
 details{margin:4px 0 8px}summary{cursor:pointer;color:#1f5fa8}
+.fu th:nth-child(1){width:28%}.fu th:nth-child(2){width:4%}.fu th:nth-child(3){width:22%}
 .ctl th:nth-child(2){width:30%}.ctl th:nth-child(4){width:24%}.ctl th:nth-child(5){width:18%}
 .raw{margin-top:2px;font-size:11px;color:#777;word-break:break-word}
 section.cam{border-top:2px solid #2b2b2b;margin-top:22px;padding-top:4px}
@@ -192,13 +193,13 @@ def _summary(meta: dict, cams: list[CameraResult], catalog: Catalog, title: str)
     after = compliance_pct([r for c in reachable for r in _final(c)])
     stats = [("Cameras", len(cams)), ("Checked", len(reachable)),
              ("Not checked", sum(not c.reachable for c in cams))]
+    now = after if after is not None else before          # the actual (current) figure, never a before -> after
     if kind == "audit":
-        stats.append(("Compliance", "n/a" if before is None else f"{before:.0f}%"))
-        stats.append(("Problems", sum(r.status == NON_COMPLIANT for c in reachable for r in c.results)))
+        stats.append(("Compliance", "n/a" if now is None else f"{now:.0f}%"))
+        stats.append(("Problems", sum(r.status in (NON_COMPLIANT, ERROR) for c in reachable for r in c.results)))
     else:
         done = Counter(ch.get("status") for c in cams for ch in c.changes if "writes" in ch)
-        stats.append(("Compliance", "n/a" if before is None else
-                      f"{before:.0f}% → {after:.0f}%" if after is not None else f"{before:.0f}%"))
+        stats.append(("Compliance", "n/a" if now is None else f"{now:.0f}%"))
         stats += [("Changes verified", done.get("verified", 0)), ("Failed", done.get("failed", 0)),
                   ("Not attempted", done.get("skipped", 0))]
     html += '<div class="stats">' + "".join(f'<div class="stat"><b>{e(v)}</b>{e(k)}</div>' for k, v in stats) + "</div>"
@@ -299,9 +300,8 @@ def _camera(cam: CameraResult, catalog: Catalog, meta: dict) -> str:
     c, d = cam.camera, cam.device
     cert = next((r.observed.get("issuer") for r in cam.results if r.id == "AX-C-004" and r.observed), "")
     final = _final(cam)
-    p_before = compliance_pct(cam.results) if cam.results else None
-    p_after = compliance_pct(cam.after) if cam.after else None
-    score = "" if p_before is None else (f"{p_before:.0f}%" + (f" → {p_after:.0f}%" if p_after is not None else ""))
+    p_now = compliance_pct(final) if final else None
+    score = "" if p_now is None else f"{p_now:.0f}%"
     html = f'<section class="cam"><h1>{e(_name(cam))}</h1>' + _kv([
         ("IP", c["host"] + (f":{c['port']}" if c.get("port") else "")), ("Customer", c.get("customer") or c.get("site", "")),
         ("Model", d.get("ProdFullName") or d.get("ProdNbr", "")), ("AXIS OS", d.get("Version", "")),
@@ -351,16 +351,29 @@ def _exceptions(meta: dict, cams: list[CameraResult], catalog: Catalog) -> str:
         html += "</table>"
     for key, heading, intro in INFO_GROUPS:
         items = groups[key]
-        if not items:
+        if not items or key == "manual":      # manual-check items are not listed in the report
             continue
-        html += f'<h2>{e(heading)}</h2><p class="muted">{e(intro)}</p><ul>'
+        html += (f'<h2>{e(heading)}</h2><p class="muted">{e(intro)}</p>'
+                 '<table class="fu"><tr><th>Check</th><th>p.</th><th>Camera(s)</th><th>What was found</th></tr>')
         for cid, findings in items:
             ctl = catalog.by_id[cid]
-            html += f"<li><b>{e(cid)} {e(ctl.title)}</b> (guide p.{ctl.guide_page})<ul>"
-            html += "".join(f"<li>{e(', '.join(names))}: {e(detail)}</li>" for detail, names in findings)
-            html += "</ul></li>"
-        html += "</ul>"
+            for i, (detail, names) in enumerate(findings):
+                lead = (f'<td rowspan="{len(findings)}">{e(cid)} {e(ctl.title)}</td>'
+                        f'<td rowspan="{len(findings)}">{ctl.guide_page}</td>') if i == 0 else ""
+                html += f"<tr>{lead}<td>{e(', '.join(names))}</td><td>{e(_plain_finding(ctl, detail))}</td></tr>"
+        html += "</table>"
     return html + "</section>"
+
+
+def _plain_finding(ctl, detail: str) -> str:
+    """Follow-up table text without raw parameter syntax, e.g. "root.X='no' (want yes)" -> "Disabled (Enabled recommended)"."""
+    import re
+    m = re.search(r"='([^']*)' \(want ([^)]*)\)", detail or "")
+    if m:
+        words = {"yes": "Enabled", "no": "Disabled", "on": "Enabled", "off": "Disabled"}
+        now, want = (words.get(x.lower(), x) for x in m.groups())
+        return f"{now} ({ctl.expect or want} recommended)"
+    return detail
 
 
 INFO_GROUPS = [
