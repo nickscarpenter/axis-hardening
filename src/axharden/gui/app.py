@@ -1404,7 +1404,7 @@ class ProfileEditor:
 
     def _note(self, ctl) -> str:
         if ctl.kind == "check":
-            return "Read only (never changed): " + (f"should be {ctl.expect}" if ctl.expect else "reported")
+            return self._fix_hint(ctl)
         if not self._available(ctl):
             return "Not available yet (network port controls come in a later version)"
         notes = []
@@ -1440,6 +1440,8 @@ class ProfileEditor:
         for c in self.controls:
             vals = list(self.tree.item(c.id, "values"))
             vals[0] = TICK if c.id in self.ticked else UNTICK
+            if c.kind == "check":
+                vals[4] = self._note(c)
             self.tree.item(c.id, values=vals)
         for level, _ in EDITOR_GROUPS:
             gid = f"group:{level}"
@@ -1514,6 +1516,18 @@ class ProfileEditor:
         self.dirty = True
         self._render()
 
+    def _fix_hint(self, ctl) -> str:
+        """How a read-only check is fixed: the setting to tick, the camera-list column, or what to do instead."""
+        should = f"Should be {ctl.expect}. " if ctl.expect else ""
+        fix = self.by_id.get(ctl.fix_control) if ctl.fix_control else None
+        if fix is not None:
+            where = "Basic hardening" if fix.level in ("basic", "default") else "Extended hardening"
+            state = "ticked" if fix.id in self.ticked else f"tick it under {where}"
+            return f"{should}Fixed by {fix.id} {fix.title} ({state})"
+        if ctl.fix_column:
+            return f"{should}Set per camera: '{ctl.fix_column}' column in the camera list (applied by Fix problems)"
+        return should + (ctl.fix_text or "Report only")
+
     def toggle(self, cid: str, confirm: bool = True) -> None:
         ctl = self.by_id.get(cid)
         if ctl is None or not self._available(ctl):
@@ -1526,6 +1540,13 @@ class ProfileEditor:
                     "\"Fix problems...\" it still starts unticked and has to be confirmed.", parent=self.win):
                 return
             self.ticked.add(cid)
+            fix = self.by_id.get(ctl.fix_control) if ctl.kind == "check" and ctl.fix_control else None
+            if confirm and fix is not None and fix.id not in self.ticked and self._available(fix) and \
+                    messagebox.askyesno("Fix it too?", f"{ctl.id} {ctl.title} is only checked.\n\n"
+                                        f"Also tick {fix.id} {fix.title}, so \"Fix problems...\" can change it?"
+                                        + (f"\n\nNote: {fix.warning}" if fix.warning else ""), parent=self.win):
+                self.toggle(fix.id, confirm=True)
+                return
         self._changed()
 
     def _click(self, event) -> None:

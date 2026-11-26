@@ -329,3 +329,20 @@ def test_gui_check_against_choice(app, monkeypatch):
     dlg.win.withdraw()
     assert dlg.var_profile.get() == "basic-safe"                   # Fix problems opens on the same baseline
     dlg.win.destroy()
+
+
+def test_profile_editor_says_how_checks_are_fixed(app, monkeypatch):
+    from axharden.gui import app as gui
+    ed = gui.ProfileEditor(app)
+    ed.win.withdraw()
+    ed.new_blank()
+    note = lambda cid: ed.tree.item(cid, "values")[4]   # noqa: E731
+    assert "Fixed by AX-E-001" in note("AX-C-008") and "tick it under Extended hardening" in note("AX-C-008")
+    assert "'syslog' column" in note("AX-C-006") and "Create accounts" in note("AX-C-014")
+    ed.toggle("AX-C-008")                                  # askyesno False in the fixture: only the check is ticked
+    assert "AX-C-008" in ed.ticked and "AX-E-001" not in ed.ticked
+    ed.toggle("AX-C-008")
+    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *a, **k: True)
+    ed.toggle("AX-C-008")                                  # yes: the matching setting is ticked too
+    assert {"AX-C-008", "AX-E-001"} <= ed.ticked and "(ticked)" in note("AX-C-008")
+    ed.close()

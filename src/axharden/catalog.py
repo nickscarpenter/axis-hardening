@@ -82,6 +82,9 @@ class Control:
     feature: str = ""                                            # short name, e.g. "Bonjour discovery"
     followup: str = ""                                           # "decision": INFO result depends on the site
     expect: str = ""                                             # plain "Should be" for CHECK controls
+    fix_control: str = ""                                        # APPLY control that fixes this CHECK
+    fix_column: str = ""                                         # camera-list column that sets it
+    fix_text: str = ""                                           # otherwise: how to fix it
     states: dict = field(default_factory=dict, hash=False, compare=False)   # {"hardened": "Off", "unhardened": "On"}
 
     def state_word(self, which: str) -> str:
@@ -168,6 +171,8 @@ def _control(raw: dict) -> Control:
         opt_in=bool(raw.get("opt_in", False)), warning=raw.get("warning"),
         feature=str(raw.get("feature") or ""), states=dict(raw.get("states") or {}),
         followup=str(raw.get("followup") or ""), expect=str(raw.get("expect") or ""),
+        fix_control=str(raw.get("fix_control") or ""), fix_column=str(raw.get("fix_column") or ""),
+        fix_text=str(raw.get("fix_text") or ""),
         verified_on=tuple(raw.get("verified_on") or ()),
     )
 
